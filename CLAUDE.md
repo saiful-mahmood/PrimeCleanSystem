@@ -66,6 +66,7 @@ pnpm typecheck
 pnpm test           # vitest
 pnpm test:e2e       # playwright
 pnpm db:push        # supabase db push to the hosted project (migrations in supabase/migrations)
+pnpm db:check       # query every table and view on the hosted project; run after each migration
 ```
 
 There is no local Supabase (the owner has no Docker). Development and tests run against the

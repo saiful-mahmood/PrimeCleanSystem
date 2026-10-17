@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:push": "supabase db push",
-    "db:link": "supabase link"
+    "db:link": "supabase link",
+    "db:check": "node scripts/check-db.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
