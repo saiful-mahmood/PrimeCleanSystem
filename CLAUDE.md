@@ -1,8 +1,9 @@
 # CleanOps — project instructions for Claude Code
 
 Read `SPEC.md` before doing anything. It is the source of truth for what we are building.
-`docs/PROMPTS.md` has the session-by-session plan; work in that order and do not start a later
-phase until the current phase's acceptance checks in SPEC.md pass.
+`docs/DECISIONS.md` records the owner's answers to ambiguities in the spec and wins over SPEC.md
+where they differ. `docs/PROMPTS.md` has the session-by-session plan; work in that order and do
+not start a later phase until the current phase's acceptance checks in SPEC.md pass.
 
 ## What this is
 
@@ -64,9 +65,11 @@ pnpm dev            # local dev server
 pnpm typecheck
 pnpm test           # vitest
 pnpm test:e2e       # playwright
-pnpm db:push        # supabase db push (migrations in supabase/migrations)
-pnpm db:reset       # local supabase reset + seed
+pnpm db:push        # supabase db push to the hosted project (migrations in supabase/migrations)
 ```
+
+There is no local Supabase (the owner has no Docker). Development and tests run against the
+hosted Supabase project; seed scripts must be idempotent.
 
 ## Layout
 
@@ -79,5 +82,5 @@ lib/                 db client, money, tz, rrule helpers, crypto (lockbox), stri
 supabase/migrations/ SQL migrations (0001_init.sql is already written; do not rewrite it)
 data/imports/        CSV templates matching the old Google Sheet tabs
 templates/           proposal template(s)
-docs/                PROMPTS.md, IMPORT_MAPPING.md
+docs/                PROMPTS.md, IMPORT_MAPPING.md, DECISIONS.md
 ```
