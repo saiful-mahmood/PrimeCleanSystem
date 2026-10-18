@@ -5,6 +5,8 @@ import { parseDollars } from "@/lib/money";
 export type FormState = {
   error?: string;
   fieldErrors?: Record<string, string>;
+  /** Success note to show the user, e.g. "Recorded 3 payments". */
+  message?: string;
 };
 
 export const OK: FormState = {};

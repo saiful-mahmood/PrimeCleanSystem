@@ -309,3 +309,64 @@ export async function recordPayment(jobId: string, _prev: FormState, formData: F
   revalidatePath(`/clients/${job.client_id}`);
   return {};
 }
+
+const bulkPaymentSchema = paymentSchema.omit({ amount_cents: true, fee_cents: true });
+
+/**
+ * One client payment covering several visits (a Zelle for the month, a
+ * check for four cleans). Writes one payments row per visit for what that
+ * visit still owes, all carrying the same reference, so per-visit margins
+ * and the P&L stay exact.
+ */
+export async function recordBulkPayment(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireOwner();
+  const jobIds = formData.getAll("job_ids").filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (jobIds.length === 0) return { error: "Select at least one visit." };
+  const parsed = bulkPaymentSchema.safeParse(formValues(formData));
+  if (!parsed.success) return fromZod(parsed.error);
+  const d = parsed.data;
+
+  const supabase = await createClient();
+  const [{ data: jobs }, { data: paid }] = await Promise.all([
+    supabase.from("jobs").select("id, client_id, charge_cents, status").in("id", jobIds),
+    supabase.from("payments").select("job_id, amount_cents").in("job_id", jobIds),
+  ]);
+  const received = new Map<string, number>();
+  for (const p of paid ?? []) if (p.job_id) received.set(p.job_id, (received.get(p.job_id) ?? 0) + p.amount_cents);
+
+  const receivedAt = localToInstant(d.received_at, "12:00").toISOString();
+  const rows = (jobs ?? [])
+    .filter((j) => j.status !== "cancelled" && j.status !== "skipped")
+    .map((j) => ({ job: j, outstanding: j.charge_cents - (received.get(j.id) ?? 0) }))
+    .filter((x) => x.outstanding > 0)
+    .map(({ job, outstanding }) => ({
+      client_id: job.client_id,
+      job_id: job.id,
+      method: d.method,
+      amount_cents: outstanding,
+      fee_cents: 0,
+      received_at: receivedAt,
+      external_ref: d.external_ref,
+      notes: d.notes,
+    }));
+  if (rows.length === 0) return { error: "None of the selected visits has anything outstanding." };
+
+  const { error } = await supabase.from("payments").insert(rows);
+  if (error) return { error: error.message };
+
+  const total = rows.reduce((s, r) => s + r.amount_cents, 0);
+  await supabase.from("audit_log").insert(
+    rows.map((r) => ({
+      actor: "owner",
+      action: "job.payment_recorded",
+      entity: "job",
+      entity_id: r.job_id,
+      meta: { method: d.method, amount_cents: r.amount_cents, external_ref: d.external_ref, bulk: rows.length },
+    })),
+  );
+  revalidateJob();
+  for (const r of rows) revalidatePath(`/jobs/${r.job_id}`);
+  return {
+    message: `Recorded ${rows.length} payment${rows.length === 1 ? "" : "s"} totalling $${(total / 100).toFixed(2)}.`,
+  };
+}

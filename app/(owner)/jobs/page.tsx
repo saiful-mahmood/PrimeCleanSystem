@@ -2,12 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { endOfMonth, format, parseISO, startOfMonth } from "date-fns";
 import { PageHeader } from "@/components/owner/page-header";
-import { StatusBadge } from "@/components/scheduling/status-badge";
+import { JobsTable } from "@/components/jobs/jobs-table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/server";
-import { formatCents } from "@/lib/money";
 import { JOB_STATUSES, type JobStatus } from "@/lib/scheduling/shared";
 import { formatLocal, localDate, localToInstant } from "@/lib/tz";
 
@@ -48,17 +46,6 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
     supabase.from("providers").select("id, name").order("name"),
   ]);
   if (error) throw new Error(error.message);
-
-  const counted = (rows ?? []).filter((r) => r.status !== "cancelled" && r.status !== "skipped");
-  const totals = counted.reduce(
-    (t, r) => ({
-      charge: t.charge + (r.charge_cents ?? 0),
-      fee: t.fee + Number(r.fee_cents ?? 0),
-      pay: t.pay + Number(r.provider_pay_cents ?? 0),
-      profit: t.profit + Number(r.profit_cents ?? 0),
-    }),
-    { charge: 0, fee: 0, pay: 0, profit: 0 },
-  );
 
   return (
     <>
@@ -104,111 +91,26 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
         </Button>
       </form>
 
-      <div className="overflow-x-auto rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Date</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead className="hidden md:table-cell">Type</TableHead>
-              <TableHead className="text-right">Charged</TableHead>
-              <TableHead className="hidden text-right lg:table-cell">Received</TableHead>
-              <TableHead className="hidden text-right lg:table-cell">Fee</TableHead>
-              <TableHead className="hidden sm:table-cell">Cleaner</TableHead>
-              <TableHead className="hidden text-right sm:table-cell">Pay</TableHead>
-              <TableHead className="hidden sm:table-cell">Paid</TableHead>
-              <TableHead className="text-right">Profit</TableHead>
-              <TableHead className="hidden text-right md:table-cell">Margin</TableHead>
-              <TableHead>Status</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {(rows ?? []).length === 0 && (
-              <TableRow>
-                <TableCell colSpan={12} className="py-8 text-center text-muted-foreground">
-                  No visits in this range.
-                </TableCell>
-              </TableRow>
-            )}
-            {(rows ?? []).map((r) => (
-              <TableRow key={r.job_id}>
-                <TableCell className="whitespace-nowrap">
-                  <Link href={`/jobs/${r.job_id}`} className="hover:underline">
-                    {formatLocal(new Date(r.scheduled_start!))}
-                  </Link>
-                </TableCell>
-                <TableCell className="max-w-48 truncate">
-                  <Link href={`/clients/${r.client_id}`} className="hover:underline">
-                    {r.client_name}
-                  </Link>
-                </TableCell>
-                <TableCell className="hidden md:table-cell">{r.cleaning_type}</TableCell>
-                <TableCell className="text-right tabular-nums">{formatCents(r.charge_cents ?? 0)}</TableCell>
-                <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                  {formatCents(Number(r.received_cents ?? 0))}
-                </TableCell>
-                <TableCell className="hidden text-right tabular-nums lg:table-cell">
-                  {formatCents(Number(r.fee_cents ?? 0))}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {r.provider_names ?? <span className="text-muted-foreground">—</span>}
-                </TableCell>
-                <TableCell className="hidden text-right tabular-nums sm:table-cell">
-                  {formatCents(Number(r.provider_pay_cents ?? 0))}
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">
-                  {Number(r.provider_pay_cents ?? 0) === 0 ? (
-                    "—"
-                  ) : r.provider_unpaid ? (
-                    <span className="text-amber-700">Unpaid</span>
-                  ) : (
-                    "Paid"
-                  )}
-                </TableCell>
-                <TableCell
-                  className={`text-right tabular-nums ${Number(r.profit_cents ?? 0) < 0 ? "text-destructive" : ""}`}
-                >
-                  {r.status === "cancelled" || r.status === "skipped" ? "—" : formatCents(Number(r.profit_cents ?? 0))}
-                </TableCell>
-                <TableCell className="hidden text-right tabular-nums md:table-cell">
-                  {r.profit_margin_pct != null && r.status !== "cancelled" && r.status !== "skipped"
-                    ? `${r.profit_margin_pct}%`
-                    : "—"}
-                </TableCell>
-                <TableCell>
-                  {r.status === "done" && !r.fully_paid ? (
-                    <span className="inline-flex items-center rounded-md border border-orange-300 bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-900">
-                      Done · unpaid
-                    </span>
-                  ) : (
-                    <StatusBadge status={r.status!} />
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-          {(rows ?? []).length > 0 && (
-            <tfoot className="border-t bg-muted/40 text-sm font-medium">
-              <tr>
-                <td className="px-2 py-2" colSpan={3}>
-                  Totals
-                </td>
-                <td className="px-2 py-2 text-right tabular-nums">{formatCents(totals.charge)}</td>
-                <td className="hidden px-2 py-2 lg:table-cell" />
-                <td className="hidden px-2 py-2 text-right tabular-nums lg:table-cell">{formatCents(totals.fee)}</td>
-                <td className="hidden px-2 py-2 sm:table-cell" />
-                <td className="hidden px-2 py-2 text-right tabular-nums sm:table-cell">{formatCents(totals.pay)}</td>
-                <td className="hidden px-2 py-2 sm:table-cell" />
-                <td className="px-2 py-2 text-right tabular-nums">{formatCents(totals.profit)}</td>
-                <td className="hidden px-2 py-2 text-right tabular-nums md:table-cell">
-                  {totals.charge ? `${Math.round((1000 * totals.profit) / totals.charge) / 10}%` : "—"}
-                </td>
-                <td />
-              </tr>
-            </tfoot>
-          )}
-        </Table>
-      </div>
+      <JobsTable
+        today={today}
+        rows={(rows ?? []).map((r) => ({
+          id: r.job_id!,
+          when: formatLocal(new Date(r.scheduled_start!)),
+          clientId: r.client_id!,
+          clientName: r.client_name ?? "",
+          serviceName: r.cleaning_type,
+          chargeCents: r.charge_cents ?? 0,
+          receivedCents: Number(r.received_cents ?? 0),
+          feeCents: Number(r.fee_cents ?? 0),
+          providerNames: r.provider_names,
+          providerPayCents: Number(r.provider_pay_cents ?? 0),
+          providerUnpaid: !!r.provider_unpaid,
+          profitCents: Number(r.profit_cents ?? 0),
+          marginPct: r.profit_margin_pct == null ? null : Number(r.profit_margin_pct),
+          status: r.status!,
+          chargeMethod: r.charge_method,
+        }))}
+      />
     </>
   );
 }
