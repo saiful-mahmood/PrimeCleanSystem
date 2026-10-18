@@ -25,7 +25,11 @@ Keep as they are: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`,
 `SUPABASE_SERVICE_ROLE_KEY`, `OWNER_EMAIL`, `LOCKBOX_ENC_KEY`, `BUSINESS_TZ`,
 `SUPABASE_PHOTOS_BUCKET`, `MESSAGING_PROVIDER`, `PROPOSAL_MODEL`.
 
-Leave blank for now (later sessions): Stripe, Twilio, Resend, Anthropic, Google Sheets.
+Leave blank for now (later sessions): Stripe, Twilio, Resend, Google Sheets.
+
+`ANTHROPIC_API_KEY` enables "Draft with AI" on quotes. Create a key at console.anthropic.com
+(pay-as-you-go; a section draft costs a few cents), add it in Vercel, and redeploy. Without it the
+quote editor still works; only the AI button is disabled.
 
 `LOCKBOX_ENC_KEY` **must be the same value as on your Mac**, or the codes you imported cannot be
 decrypted in production.
