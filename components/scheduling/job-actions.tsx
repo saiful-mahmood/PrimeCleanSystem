@@ -1,11 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { FormActions, TextField } from "@/components/forms/fields";
+import { FormActions, SelectField, TextField } from "@/components/forms/fields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FormState } from "@/lib/forms";
-import { assignProvider, cancelJob } from "@/app/(owner)/jobs/actions";
+import { assignProvider, cancelJob, recordPayment } from "@/app/(owner)/jobs/actions";
 
 export function AssignForm({
   jobId,
@@ -106,5 +106,93 @@ export function CancelJobForm({ jobId, hasAssignments }: { jobId: string; hasAss
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+const PAYMENT_METHODS = [
+  { value: "zelle", label: "Zelle" },
+  { value: "check", label: "Check" },
+  { value: "cash", label: "Cash" },
+  { value: "venmo", label: "Venmo" },
+  { value: "stripe_card", label: "Card (Stripe)" },
+  { value: "stripe_ach", label: "ACH (Stripe)" },
+  { value: "stripe_invoice", label: "Stripe invoice" },
+];
+
+export function RecordPaymentForm({
+  jobId,
+  outstandingCents,
+  defaultMethod,
+  today,
+}: {
+  jobId: string;
+  outstandingCents: number;
+  defaultMethod: string | null;
+  today: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [state, action, pending] = useActionState<FormState, FormData>(recordPayment.bind(null, jobId), {});
+  const e = state.fieldErrors ?? {};
+
+  if (!open) {
+    return (
+      <Button size="sm" onClick={() => setOpen(true)}>
+        Record payment
+      </Button>
+    );
+  }
+
+  return (
+    <form action={action} className="space-y-3 rounded-md border p-3">
+      <div className="grid grid-cols-2 gap-3">
+        <TextField
+          label="Amount"
+          name="amount_cents"
+          inputMode="decimal"
+          defaultValue={(Math.max(outstandingCents, 0) / 100).toFixed(2)}
+          error={e.amount_cents}
+          required
+          autoFocus
+        />
+        <SelectField
+          label="Paid by"
+          name="method"
+          defaultValue={
+            defaultMethod && PAYMENT_METHODS.some((m) => m.value === defaultMethod) ? defaultMethod : "zelle"
+          }
+          error={e.method}
+          options={PAYMENT_METHODS}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <TextField
+          label="Date received"
+          name="received_at"
+          type="date"
+          defaultValue={today}
+          error={e.received_at}
+          required
+        />
+        <TextField
+          label="Confirmation / check #"
+          name="external_ref"
+          error={e.external_ref}
+          placeholder="Zelle confirmation, check number"
+          autoComplete="off"
+        />
+      </div>
+      <TextField
+        label="Processing fee (if card)"
+        name="fee_cents"
+        inputMode="decimal"
+        placeholder="0.00"
+        error={e.fee_cents}
+        hint="Leave blank for Zelle, check, cash or Venmo."
+      />
+      <FormActions pending={pending} submitLabel="Record payment" error={state.error} />
+      <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
+        Cancel
+      </Button>
+    </form>
   );
 }

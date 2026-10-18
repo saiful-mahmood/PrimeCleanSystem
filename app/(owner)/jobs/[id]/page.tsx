@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/owner/page-header";
 import { DetailList } from "@/components/owner/detail-list";
 import { StatusBadge } from "@/components/scheduling/status-badge";
-import { AssignForm, CancelJobForm } from "@/components/scheduling/job-actions";
+import { AssignForm, CancelJobForm, RecordPaymentForm } from "@/components/scheduling/job-actions";
+import { Badge } from "@/components/ui/badge";
 import { RevealLockbox } from "@/components/clients/reveal-lockbox";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,7 +19,7 @@ import { endSeries } from "../../series/actions";
 export default async function JobDetailPage({ params }: PageProps<"/jobs/[id]">) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data: job }, { data: econ }, { data: providers }, { data: audit }] = await Promise.all([
+  const [{ data: job }, { data: econ }, { data: providers }, { data: audit }, { data: payments }] = await Promise.all([
     supabase
       .from("jobs")
       .select(
@@ -35,6 +36,11 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[id]">)
       .eq("entity_id", id)
       .order("created_at", { ascending: false })
       .limit(20),
+    supabase
+      .from("payments")
+      .select("id, method, amount_cents, fee_cents, received_at, external_ref, notes")
+      .eq("job_id", id)
+      .order("received_at"),
   ]);
   if (!job) notFound();
 
@@ -49,6 +55,8 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[id]">)
   const chargeLabel =
     [...CHARGE_METHODS, { value: "venmo", label: "Venmo" }].find((m) => m.value === job.charge_method)?.label ?? null;
   const activeAssignments = job.job_assignments.filter((a) => a.status !== "declined");
+  const received = (payments ?? []).reduce((s, p) => s + p.amount_cents, 0);
+  const outstanding = job.charge_cents - received;
 
   return (
     <>
@@ -220,15 +228,20 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[id]">)
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex-row items-center justify-between">
               <CardTitle>Money</CardTitle>
+              {job.status !== "cancelled" && job.status !== "skipped" && (
+                <Badge variant={outstanding <= 0 ? "default" : "outline"}>
+                  {outstanding <= 0 ? "Paid in full" : `${formatCents(outstanding)} outstanding`}
+                </Badge>
+              )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-4">
               <DetailList
                 items={[
                   ["Charged", formatCents(job.charge_cents)],
-                  ["Received", formatCents(Number(econ?.received_cents ?? 0))],
-                  ["Stripe fee", formatCents(Number(econ?.fee_cents ?? 0))],
+                  ["Received", formatCents(received)],
+                  ["Processing fee", formatCents(Number(econ?.fee_cents ?? 0))],
                   ["Cleaner pay", formatCents(Number(econ?.provider_pay_cents ?? 0))],
                   [
                     "Profit",
@@ -236,9 +249,31 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[id]">)
                   ],
                 ]}
               />
-              <p className="mt-3 text-xs text-muted-foreground">
-                Payment links, invoices and the payment timeline arrive in Session 4.
-              </p>
+              {(payments ?? []).length > 0 && (
+                <ul className="divide-y rounded-md border text-sm">
+                  {(payments ?? []).map((p) => (
+                    <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                      <span>
+                        {formatLocal(new Date(p.received_at)).split(" · ")[0]} ·{" "}
+                        <span className="capitalize">{p.method.replace("stripe_", "").replace("_", " ")}</span>
+                        {p.external_ref && (
+                          <span className="font-mono text-xs text-muted-foreground"> · {p.external_ref}</span>
+                        )}
+                      </span>
+                      <span className="tabular-nums">{formatCents(p.amount_cents)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {job.status !== "cancelled" && job.status !== "skipped" && (
+                <RecordPaymentForm
+                  jobId={job.id}
+                  outstandingCents={outstanding}
+                  defaultMethod={job.charge_method}
+                  today={localDate(new Date())}
+                />
+              )}
+              <p className="text-xs text-muted-foreground">Payment links and Stripe invoices arrive in Session 4.</p>
             </CardContent>
           </Card>
 

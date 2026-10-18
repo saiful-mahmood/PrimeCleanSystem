@@ -118,3 +118,12 @@ export const cancelSchema = z.object({
   reason: requiredText("Reason"),
   fee_cents: optionalDollars,
 });
+
+export const paymentSchema = z.object({
+  method: z.enum(["zelle", "check", "cash", "venmo", "stripe_card", "stripe_ach", "stripe_invoice"]),
+  amount_cents: requiredDollars("Amount"),
+  fee_cents: optionalDollars,
+  received_at: localDateField,
+  external_ref: optionalText,
+  notes: optionalText,
+});

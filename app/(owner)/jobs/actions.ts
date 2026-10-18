@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formValues, fromZod, type FormState } from "@/lib/forms";
-import { assignSchema, cancelSchema, jobEditSchema, jobSchema } from "@/lib/scheduling/shared";
+import { assignSchema, cancelSchema, jobEditSchema, jobSchema, paymentSchema } from "@/lib/scheduling/shared";
 import { localDate, localTime, localToInstant } from "@/lib/tz";
 import type { Json } from "@/lib/database.types";
 
@@ -271,4 +271,41 @@ export async function reopenJob(jobId: string) {
 /** Today's local date helper for forms. */
 export async function todayForForms() {
   return localDate(new Date());
+}
+
+/**
+ * The client paid: record money received against this visit. Zelle, check,
+ * cash and Venmo are entered by hand; Stripe rows will come from the webhook
+ * in Session 4 and look the same. Payments are never deleted (rule 3).
+ */
+export async function recordPayment(jobId: string, _prev: FormState, formData: FormData): Promise<FormState> {
+  await requireOwner();
+  const parsed = paymentSchema.safeParse(formValues(formData));
+  if (!parsed.success) return fromZod(parsed.error);
+  const d = parsed.data;
+
+  const supabase = await createClient();
+  const { data: job } = await supabase.from("jobs").select("client_id, status").eq("id", jobId).maybeSingle();
+  if (!job) return { error: "Job not found." };
+
+  const { error } = await supabase.from("payments").insert({
+    client_id: job.client_id,
+    job_id: jobId,
+    method: d.method,
+    amount_cents: d.amount_cents,
+    fee_cents: d.fee_cents ?? 0,
+    received_at: localToInstant(d.received_at, "12:00").toISOString(),
+    external_ref: d.external_ref,
+    notes: d.notes,
+  });
+  if (error) return { error: error.message };
+
+  await audit(supabase, "job.payment_recorded", jobId, {
+    method: d.method,
+    amount_cents: d.amount_cents,
+    external_ref: d.external_ref,
+  });
+  revalidateJob(jobId);
+  revalidatePath(`/clients/${job.client_id}`);
+  return {};
 }
