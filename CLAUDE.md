@@ -68,6 +68,7 @@ pnpm test:db        # vitest against the hosted database (payout ledger guards);
 pnpm test:e2e       # playwright
 pnpm db:push        # supabase db push to the hosted project (migrations in supabase/migrations)
 pnpm db:check       # query every table and view on the hosted project; run after each migration
+pnpm db:rollback-import   # undo the last sheet import (ids from audit_log); --partial cleans a failed one
 ```
 
 There is no local Supabase (the owner has no Docker). Development and tests run against the

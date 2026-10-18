@@ -15,7 +15,8 @@
     "db:link": "supabase link",
     "db:check": "node scripts/check-db.mjs",
     "dev:login": "node scripts/dev-login-link.mjs",
-    "test:db": "vitest run --config vitest.db.config.mts"
+    "test:db": "vitest run --config vitest.db.config.mts",
+    "db:rollback-import": "node scripts/rollback-import.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

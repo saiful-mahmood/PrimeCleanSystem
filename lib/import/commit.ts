@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/database.types";
+import type { Database, Json } from "@/lib/database.types";
 import { encryptSecret } from "@/lib/crypto";
 import { localDate } from "@/lib/tz";
 import type { Normalized } from "./normalize";
@@ -55,7 +55,7 @@ function chunk<T>(arr: T[], size = 200): T[][] {
  * Paid rows get a one-assignment payout dated the cleaning day so history is
  * consistent with the ledger (IMPORT_MAPPING.md).
  */
-export async function writeImport(db: Db, n: Normalized, now = new Date()): Promise<ImportCounts> {
+async function writeImportInner(db: Db, n: Normalized, now: Date, created: CreatedIds): Promise<ImportCounts> {
   const counts: ImportCounts = {
     clients: 0,
     locations: 0,
@@ -95,6 +95,7 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
     const { data, error } = await db.from("clients").insert(batch).select("id, name");
     fail("clients", error);
     for (const c of data ?? []) clientId.set(c.name.toLowerCase(), c.id);
+    created.clients.push(...(data ?? []).map((c) => c.id));
     counts.clients += data?.length ?? 0;
   }
 
@@ -121,6 +122,7 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
     const { data, error } = await db.from("locations").insert(batch).select("id, client_id");
     fail("locations", error);
     for (const l of data ?? []) locationId.set(l.client_id, l.id);
+    created.locations.push(...(data ?? []).map((l) => l.id));
     counts.locations += data?.length ?? 0;
   }
   // Client Details for clients that already had a location: fill blanks, set lockbox if given.
@@ -147,6 +149,7 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
     const { data, error } = await db.from("providers").insert(batch).select("id, name");
     fail("providers", error);
     for (const p of data ?? []) providerId.set(p.name.toLowerCase(), p.id);
+    created.providers.push(...(data ?? []).map((p) => p.id));
     counts.providers += data?.length ?? 0;
   }
 
@@ -159,6 +162,7 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
     const { data, error } = await db.from("service_types").insert(newTypes).select("id, name");
     fail("service_types", error);
     for (const s of data ?? []) serviceId.set(s.name.toLowerCase(), s.id);
+    created.serviceTypes.push(...(data ?? []).map((s) => s.id));
     counts.serviceTypes += data?.length ?? 0;
   }
 
@@ -185,6 +189,7 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
     const { data, error } = await db.from("jobs").insert(batch).select("id");
     fail("jobs", error);
     jobIds.push(...(data ?? []).map((j) => j.id));
+    created.jobs.push(...(data ?? []).map((j) => j.id));
   }
   counts.jobs = jobIds.length;
 
@@ -261,8 +266,9 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
     }
   });
   for (const batch of chunk(payRows)) {
-    const { error } = await db.from("payments").insert(batch);
+    const { data, error } = await db.from("payments").insert(batch).select("id");
     fail("payments", error);
+    created.payments.push(...(data ?? []).map((p) => p.id));
     counts.payments += batch.length;
   }
   for (const batch of chunk(invRows)) {
@@ -281,6 +287,7 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
       )
       .select("id");
     fail("invoices", error);
+    created.invoices.push(...(data ?? []).map((inv) => inv.id));
     const links = (data ?? []).map((inv, k) => ({ invoice_id: inv.id, job_id: batch[k]._job }));
     const { error: linkErr } = await db.from("invoice_jobs").insert(links);
     fail("invoice_jobs", linkErr);
@@ -302,6 +309,7 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
       )
       .select("id");
     fail("payouts", error);
+    created.payouts.push(...(payouts ?? []).map((p) => p.id));
     // Attach, then mark paid (the trigger freezes assignments once paid_at is set).
     for (let j = 0; j < batch.length; j++) {
       const k = batch[j];
@@ -311,35 +319,37 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
         .eq("id", asgIds[k]);
       fail("attach payout", aErr);
     }
-    const { error: paidErr } = await db
-      .from("payouts")
-      .upsert(
-        batch.map((k, j) => ({
-          id: payouts![j].id,
-          provider_id: asgRows[k].provider_id,
-          paid_at: asgRows[k]._when,
-          reference: "imported",
-        })),
-      );
+    const { error: paidErr } = await db.from("payouts").upsert(
+      batch.map((k, j) => ({
+        id: payouts![j].id,
+        provider_id: asgRows[k].provider_id,
+        paid_at: asgRows[k]._when,
+        reference: "imported",
+      })),
+    );
     fail("mark payouts paid", paidErr);
     counts.payouts += batch.length;
   }
 
   // --- expenses ------------------------------------------------------------
   for (const batch of chunk(n.expenses)) {
-    const { error } = await db.from("expenses").insert(
-      batch.map((e) => ({
-        name: e.name,
-        category: e.category,
-        paid_at: e.paidAt,
-        amount_cents: e.amountCents,
-        paid_with: e.paidWith,
-        platform: e.platform,
-        cadence: e.cadence,
-        notes: e.notes,
-      })),
-    );
+    const { data, error } = await db
+      .from("expenses")
+      .insert(
+        batch.map((e) => ({
+          name: e.name,
+          category: e.category,
+          paid_at: e.paidAt,
+          amount_cents: e.amountCents,
+          paid_with: e.paidWith,
+          platform: e.platform,
+          cadence: e.cadence,
+          notes: e.notes,
+        })),
+      )
+      .select("id");
     fail("expenses", error);
+    created.expenses.push(...(data ?? []).map((e) => e.id));
     counts.expenses += batch.length;
   }
 
@@ -347,7 +357,84 @@ export async function writeImport(db: Db, n: Normalized, now = new Date()): Prom
     actor: "owner",
     action: "import.commit",
     entity: "import",
-    meta: { ...counts, at: now.toISOString(), warnings: n.warnings.length },
+    meta: { ...counts, at: now.toISOString(), warnings: n.warnings.length, ids: created as unknown as Json },
   });
   return counts;
+}
+
+export type CreatedIds = {
+  clients: string[];
+  locations: string[];
+  providers: string[];
+  serviceTypes: string[];
+  jobs: string[];
+  payments: string[];
+  invoices: string[];
+  payouts: string[];
+  expenses: string[];
+};
+
+function emptyCreated(): CreatedIds {
+  return {
+    clients: [],
+    locations: [],
+    providers: [],
+    serviceTypes: [],
+    jobs: [],
+    payments: [],
+    invoices: [],
+    payouts: [],
+    expenses: [],
+  };
+}
+
+/**
+ * Supabase's HTTP API has no multi-statement transaction, so an import is a
+ * sequence of inserts. If any step fails, delete what this run created, in
+ * dependency order, and rethrow. The ids are also stored on the
+ * import.commit audit row so scripts/rollback-import.mjs can undo a finished
+ * import.
+ */
+export async function writeImport(db: Db, n: Normalized, now = new Date()): Promise<ImportCounts> {
+  const created = emptyCreated();
+  try {
+    return await writeImportInner(db, n, now, created);
+  } catch (e) {
+    const undo = await rollbackCreated(db, created);
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`${msg}. Nothing was kept: ${undo} rows from this attempt were removed.`);
+  }
+}
+
+export async function rollbackCreated(db: Db, c: CreatedIds): Promise<number> {
+  let removed = 0;
+  const wipe = async (
+    table:
+      | "payments"
+      | "invoices"
+      | "jobs"
+      | "payouts"
+      | "expenses"
+      | "service_types"
+      | "providers"
+      | "locations"
+      | "clients",
+    ids: string[],
+  ) => {
+    for (const batch of chunk(ids, 100)) {
+      const { count } = await db.from(table).delete({ count: "exact" }).in("id", batch);
+      removed += count ?? 0;
+    }
+  };
+  // Jobs cascade their assignments; a paid payout only freezes updates, not deletes.
+  await wipe("payments", c.payments);
+  await wipe("invoices", c.invoices);
+  await wipe("jobs", c.jobs);
+  await wipe("payouts", c.payouts);
+  await wipe("expenses", c.expenses);
+  await wipe("service_types", c.serviceTypes);
+  await wipe("providers", c.providers);
+  await wipe("locations", c.locations);
+  await wipe("clients", c.clients);
+  return removed;
 }
