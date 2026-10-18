@@ -68,8 +68,11 @@ export default async function TodayPage() {
       !j.job_assignments.some((a) => a.status === "accepted" || a.status === "done"),
   );
   const totalOwed = (owed ?? []).reduce((s, o) => s + Number(o.owed_cents ?? 0), 0);
-  const arTotal = (ar ?? []).reduce((s, r) => s + Number(r.amount_cents ?? 0), 0);
-  const arOldest = ar?.[0];
+  // The tile is this month's balances; older ones are noted and still listed under attention.
+  const arThisMonth = (ar ?? []).filter((r) => (r.since ?? "") >= thisMonth);
+  const arOlder = (ar ?? []).filter((r) => (r.since ?? "") < thisMonth);
+  const arTotal = arThisMonth.reduce((s, r) => s + Number(r.amount_cents ?? 0), 0);
+  const arOlderTotal = arOlder.reduce((s, r) => s + Number(r.amount_cents ?? 0), 0);
   const overdueAr = (ar ?? []).filter((r) => Number(r.days_outstanding ?? 0) > nudgeDays);
   const thisPnl = pnl?.find((p) => p.month === thisMonth);
   const lastPnl = pnl?.find((p) => p.month === lastMonth);
@@ -87,9 +90,15 @@ export default async function TodayPage() {
         />
         <Stat
           href="/jobs?status=done"
-          label="Owed by clients"
+          label="Owed by clients this month"
           value={formatCents(arTotal)}
-          sub={arOldest ? `oldest ${arOldest.days_outstanding}d · ${arOldest.client_name}` : "nothing outstanding"}
+          sub={
+            arOlder.length
+              ? `+ ${formatCents(arOlderTotal)} from earlier months (${arOlder.length})`
+              : arThisMonth.length
+                ? `${arThisMonth.length} visit${arThisMonth.length === 1 ? "" : "s"} or invoice${arThisMonth.length === 1 ? "" : "s"}`
+                : "nothing outstanding"
+          }
         />
         <Stat
           href="/jobs"
