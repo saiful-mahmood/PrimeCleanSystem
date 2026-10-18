@@ -68,11 +68,12 @@ export default async function TodayPage() {
       !j.job_assignments.some((a) => a.status === "accepted" || a.status === "done"),
   );
   const totalOwed = (owed ?? []).reduce((s, o) => s + Number(o.owed_cents ?? 0), 0);
-  // The tile is this month's balances; older ones are noted and still listed under attention.
-  const arThisMonth = (ar ?? []).filter((r) => (r.since ?? "") >= thisMonth);
-  const arOlder = (ar ?? []).filter((r) => (r.since ?? "") < thisMonth);
-  const arTotal = arThisMonth.reduce((s, r) => s + Number(r.amount_cents ?? 0), 0);
-  const arOlderTotal = arOlder.reduce((s, r) => s + Number(r.amount_cents ?? 0), 0);
+  // Both "owed" tiles are to date; the month split is shown as a note.
+  const arTotal = (ar ?? []).reduce((s, r) => s + Number(r.amount_cents ?? 0), 0);
+  const arThisMonthTotal = (ar ?? [])
+    .filter((r) => (r.since ?? "") >= thisMonth)
+    .reduce((s, r) => s + Number(r.amount_cents ?? 0), 0);
+  const arOldest = ar?.[0];
   const overdueAr = (ar ?? []).filter((r) => Number(r.days_outstanding ?? 0) > nudgeDays);
   const thisPnl = pnl?.find((p) => p.month === thisMonth);
   const lastPnl = pnl?.find((p) => p.month === lastMonth);
@@ -84,20 +85,18 @@ export default async function TodayPage() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat
           href="/pay"
-          label="Owed to cleaners"
+          label="Owed to cleaners to date"
           value={formatCents(totalOwed)}
           sub={owed?.length ? `${owed.length} cleaner${owed.length === 1 ? "" : "s"}` : "all paid"}
         />
         <Stat
           href="/jobs?status=done"
-          label="Owed by clients this month"
+          label="Owed by clients to date"
           value={formatCents(arTotal)}
           sub={
-            arOlder.length
-              ? `+ ${formatCents(arOlderTotal)} from earlier months (${arOlder.length})`
-              : arThisMonth.length
-                ? `${arThisMonth.length} visit${arThisMonth.length === 1 ? "" : "s"} or invoice${arThisMonth.length === 1 ? "" : "s"}`
-                : "nothing outstanding"
+            arOldest
+              ? `${formatCents(arThisMonthTotal)} from this month · oldest ${arOldest.days_outstanding}d`
+              : "nothing outstanding"
           }
         />
         <Stat
@@ -152,9 +151,7 @@ export default async function TodayPage() {
                 </li>
               ))}
               {(owed ?? [])
-                .filter(
-                  (o) => o.oldest_job_at && new Date(o.oldest_job_at) < nudgeCutoff,
-                )
+                .filter((o) => o.oldest_job_at && new Date(o.oldest_job_at) < nudgeCutoff)
                 .map((o) => (
                   <li key={o.provider_id}>
                     <Link href="/pay" className="hover:underline">
@@ -181,9 +178,9 @@ export default async function TodayPage() {
                 </li>
               ))}
               {overdueAr.length + notAccepted.length + (ending?.length ?? 0) === 0 &&
-                !(owed ?? []).some(
-                  (o) => o.oldest_job_at && new Date(o.oldest_job_at) < nudgeCutoff,
-                ) && <li className="text-muted-foreground">Nothing urgent.</li>}
+                !(owed ?? []).some((o) => o.oldest_job_at && new Date(o.oldest_job_at) < nudgeCutoff) && (
+                  <li className="text-muted-foreground">Nothing urgent.</li>
+                )}
             </ul>
           </CardContent>
         </Card>
