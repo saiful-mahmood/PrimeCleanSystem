@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { parseCsv, rowsToRecords } from "@/lib/import/csv";
+import { workbookToTabs } from "@/lib/import/workbook";
 import { normalizeAll, type Normalized, type Warning } from "@/lib/import/normalize";
 import { applyMappings, writeImport, type ImportCounts, type Mappings } from "@/lib/import/commit";
 
@@ -29,13 +30,24 @@ export type Preview = {
   files: { clients: boolean; revenues: boolean; expenses: boolean };
 };
 
-async function readTabs(
-  formData: FormData,
-): Promise<{
+async function readTabs(formData: FormData): Promise<{
   clients?: Record<string, string>[];
   revenues?: Record<string, string>[];
   expenses?: Record<string, string>[];
 }> {
+  // One .xlsx with all the tabs wins over individual CSVs.
+  const workbook = formData.get("workbook");
+  if (workbook instanceof File && workbook.size > 0) {
+    if (workbook.size > 25 * 1024 * 1024) throw new Error(`${workbook.name} is larger than 25 MB.`);
+    if (!/\.xlsx$/i.test(workbook.name))
+      throw new Error("The workbook must be an .xlsx file (File → Download → Microsoft Excel).");
+    const { tabs, sheetsFound } = await workbookToTabs(Buffer.from(await workbook.arrayBuffer()));
+    if (sheetsFound.length === 0) {
+      throw new Error('No tab named "Client Details", "Revenues" or "Expenses" was found in the workbook.');
+    }
+    return tabs;
+  }
+
   const read = async (field: string, firstHeader: string) => {
     const f = formData.get(field);
     if (!(f instanceof File) || f.size === 0) return undefined;

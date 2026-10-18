@@ -70,25 +70,38 @@ export function ImportWizard() {
     <div className="space-y-6">
       {/* The file inputs stay mounted through every step so the same files are re-sent on commit. */}
       <form ref={formRef} className={step === "upload" ? "space-y-4" : "hidden"} onSubmit={(e) => e.preventDefault()}>
-        <FileField
-          name="clients"
-          label="Client Details"
-          hint="Columns: Client Name, Lockbox Codes, Type of Client, Location, Basic Info, Scope of Work"
-        />
-        <FileField
-          name="revenues"
-          label="Revenues"
-          hint="Columns: Client Name, Cleaning Type, Cleaning Date and time, Charged Amount, PMT Received, …"
-        />
-        <FileField
-          name="expenses"
-          label="Expenses"
-          hint="Columns: Subscription, Payment Date, Amount, Paid With, Platform, Recurring Cadence, Notes"
-        />
-        <p className="text-xs text-muted-foreground">
-          Monthly Profits is not imported; it is recomputed. Export each tab with File → Download → CSV. The totals row
-          above the header is fine.
-        </p>
+        <div className="rounded-md border p-4">
+          <FileField
+            name="workbook"
+            label="The whole spreadsheet (.xlsx)"
+            hint="In Google Sheets: File → Download → Microsoft Excel. The Client Details, Revenues and Expenses tabs are read by name; Monthly Profits is skipped and recomputed."
+            accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          />
+        </div>
+        <details className="rounded-md border p-4">
+          <summary className="cursor-pointer text-sm font-medium">Or upload the tabs as separate CSV files</summary>
+          <div className="mt-4 space-y-4">
+            <FileField
+              name="clients"
+              label="Client Details"
+              hint="Columns: Client Name, Lockbox Codes, Type of Client, Location, Basic Info, Scope of Work"
+            />
+            <FileField
+              name="revenues"
+              label="Revenues"
+              hint="Columns: Client Name, Cleaning Type, Cleaning Date and time, Charged Amount, PMT Received, …"
+            />
+            <FileField
+              name="expenses"
+              label="Expenses"
+              hint="Columns: Subscription, Payment Date, Amount, Paid With, Platform, Recurring Cadence, Notes"
+            />
+            <p className="text-xs text-muted-foreground">
+              Export each tab with File → Download → CSV. The totals row above the header is fine. Ignored when a
+              workbook is chosen above.
+            </p>
+          </div>
+        </details>
         <Button onClick={analyze} disabled={pending}>
           {pending ? "Reading…" : "Preview import"}
         </Button>
@@ -302,11 +315,21 @@ function countAliasesTo(preview: Preview, canonical: string): number {
   return Math.max(1, Object.values(preview.clientAliases).filter((c) => c === canonical).length);
 }
 
-function FileField({ name, label, hint }: { name: string; label: string; hint: string }) {
+function FileField({
+  name,
+  label,
+  hint,
+  accept = ".csv,text/csv",
+}: {
+  name: string;
+  label: string;
+  hint: string;
+  accept?: string;
+}) {
   return (
     <div className="space-y-1.5">
       <Label htmlFor={`file-${name}`}>{label}</Label>
-      <Input id={`file-${name}`} name={name} type="file" accept=".csv,text/csv" />
+      <Input id={`file-${name}`} name={name} type="file" accept={accept} />
       <p className="text-xs text-muted-foreground">{hint}</p>
     </div>
   );
