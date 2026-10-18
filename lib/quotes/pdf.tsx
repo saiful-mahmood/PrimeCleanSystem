@@ -28,6 +28,8 @@ const MUTED = "#4b5563";
 const RULE = "#9ca3af";
 const BORDER = "#c7cbd1";
 
+// No lineHeight on the Page style: with one, react-pdf 4.9 silently drops render-prop
+// Texts (the page number). Line height lives on paragraph and cell styles instead.
 const s = StyleSheet.create({
   page: {
     paddingTop: 96,
@@ -36,14 +38,13 @@ const s = StyleSheet.create({
     fontFamily: "Helvetica",
     fontSize: 10.5,
     color: TEXT,
-    lineHeight: 1.4,
   },
   header: { position: "absolute", top: 32, left: 56, right: 56 },
   headerLogo: { width: 150, height: 45, objectFit: "contain" },
   headerRule: { marginTop: 8, borderBottomWidth: 1, borderBottomColor: RULE },
   footer: { position: "absolute", bottom: 28, left: 56, right: 56, fontSize: 8, color: MUTED },
   footerLeft: { textAlign: "left" },
-  footerCenter: { textAlign: "center" },
+  pageNumber: { position: "absolute", bottom: 28, left: 0, right: 0, textAlign: "center", fontSize: 8, color: MUTED },
   footerRight: { textAlign: "right" },
   coverTitle: {
     marginTop: 100,
@@ -60,12 +61,12 @@ const s = StyleSheet.create({
   coverDate: { marginTop: 20, textAlign: "center", fontSize: 9.5, color: MUTED },
   h2: { fontSize: 15, fontFamily: "Helvetica-Bold", color: NAVY_DARK, marginTop: 14, marginBottom: 8 },
   h3: { fontSize: 11.5, fontFamily: "Helvetica-Bold", color: NAVY, marginTop: 10, marginBottom: 4 },
-  p: { marginBottom: 8 },
+  p: { marginBottom: 8, lineHeight: 1.4 },
   table: { marginVertical: 6, borderWidth: 1, borderColor: BORDER },
   trHead: { flexDirection: "row", backgroundColor: NAVY },
   th: { color: "#ffffff", fontSize: 8.5, paddingVertical: 5, paddingHorizontal: 7 },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: BORDER },
-  td: { fontSize: 9, paddingVertical: 5, paddingHorizontal: 7 },
+  td: { fontSize: 9, paddingVertical: 5, paddingHorizontal: 7, lineHeight: 1.35 },
   wide: { flex: 3, borderRightWidth: 1, borderRightColor: BORDER },
   narrow: { flex: 1 },
   totalBox: { marginTop: 14, marginBottom: 10, flexDirection: "row", borderWidth: 1, borderColor: NAVY },
@@ -81,7 +82,7 @@ const s = StyleSheet.create({
   totalValue: { flex: 1, paddingVertical: 12, paddingHorizontal: 16, fontSize: 18, textAlign: "center", color: MUTED },
   sigRow: { flexDirection: "row", marginTop: 18, gap: 24 },
   sigCol: { flex: 1 },
-  sigLine: { marginTop: 14, fontSize: 9.5 },
+  sigLine: { marginTop: 14, fontSize: 9.5, lineHeight: 1.4 },
 });
 
 let logoCache: Buffer | null = null;
@@ -100,7 +101,6 @@ function Chrome({ label }: { label: string }) {
       <Text style={[s.footer, s.footerLeft]} fixed>
         PRIME CLEAN CARE
       </Text>
-      <Text style={[s.footer, s.footerCenter]} render={({ pageNumber }) => String(pageNumber)} fixed />
       <Text style={[s.footer, s.footerRight]} fixed>
         {label}
       </Text>
@@ -158,6 +158,7 @@ export function QuoteDocument({
       {/* Cover */}
       <Page size="LETTER" style={s.page}>
         <Chrome label={label} />
+        <Text style={s.pageNumber} render={({ pageNumber }) => `${pageNumber}`} fixed />
         <Text style={s.coverTitle}>{fields.title}</Text>
         <Text style={s.coverLabel}>PREPARED FOR:</Text>
         <Text style={s.coverName}>{fields.client.name.toUpperCase()}</Text>
@@ -176,6 +177,7 @@ export function QuoteDocument({
       {/* Body */}
       <Page size="LETTER" style={s.page}>
         <Chrome label={label} />
+        <Text style={s.pageNumber} render={({ pageNumber }) => `${pageNumber}`} fixed />
 
         <Text style={s.h2}>1. Scope Summary</Text>
         <Paragraphs text={sec.scope_summary} />
