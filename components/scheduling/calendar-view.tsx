@@ -7,6 +7,7 @@ import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { rescheduleJob, skipJob, markJobDone } from "@/app/(owner)/jobs/actions";
+import { RecordPaymentForm } from "./job-actions";
 import { formatCents } from "@/lib/money";
 import { statusMeta, type AssignmentStatus, type JobStatus, ASSIGNMENT_LABEL } from "@/lib/scheduling/shared";
 import { cn } from "@/lib/utils";
@@ -20,6 +21,8 @@ export type CalendarJob = {
   durationMin: number;
   status: JobStatus;
   chargeCents: number;
+  receivedCents: number;
+  chargeMethod: string | null;
   clientName: string;
   clientType: "residential" | "commercial";
   serviceName: string;
@@ -125,7 +128,7 @@ export function CalendarView({
         })}
       </div>
 
-      <JobPanel job={selected} onClose={() => setSelected(null)} />
+      <JobPanel job={selected} onClose={() => setSelected(null)} today={today} />
     </>
   );
 }
@@ -161,7 +164,7 @@ function JobChip({ job, compact, onSelect }: { job: CalendarJob; compact: boolea
   );
 }
 
-function JobPanel({ job, onClose }: { job: CalendarJob | null; onClose: () => void }) {
+function JobPanel({ job, onClose, today }: { job: CalendarJob | null; onClose: () => void; today: string }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const open = !!job;
@@ -186,7 +189,23 @@ function JobPanel({ job, onClose }: { job: CalendarJob | null; onClose: () => vo
                 <dt className="text-muted-foreground">Where</dt>
                 <dd>{job.city ?? "—"}</dd>
                 <dt className="text-muted-foreground">Charge</dt>
-                <dd>{formatCents(job.chargeCents)}</dd>
+                <dd>
+                  {formatCents(job.chargeCents)}
+                  {job.status !== "cancelled" && job.status !== "skipped" && (
+                    <span
+                      className={cn(
+                        "ml-2 text-xs",
+                        job.receivedCents >= job.chargeCents ? "text-emerald-700" : "text-amber-700",
+                      )}
+                    >
+                      {job.receivedCents >= job.chargeCents
+                        ? "paid"
+                        : job.receivedCents > 0
+                          ? `${formatCents(job.chargeCents - job.receivedCents)} still owed`
+                          : "not paid yet"}
+                    </span>
+                  )}
+                </dd>
                 <dt className="text-muted-foreground">Cleaner</dt>
                 <dd>
                   {job.assignments.length === 0
@@ -235,6 +254,22 @@ function JobPanel({ job, onClose }: { job: CalendarJob | null; onClose: () => vo
                   </Button>
                 )}
               </div>
+
+              {job.status !== "cancelled" && job.status !== "skipped" && job.receivedCents < job.chargeCents && (
+                <div className="space-y-2 rounded-md border p-3">
+                  <p className="text-xs font-medium text-muted-foreground">Client payment</p>
+                  <RecordPaymentForm
+                    jobId={job.id}
+                    outstandingCents={job.chargeCents - job.receivedCents}
+                    defaultMethod={job.chargeMethod}
+                    today={today}
+                    onRecorded={() => {
+                      router.refresh();
+                      onClose();
+                    }}
+                  />
+                </div>
+              )}
 
               {job.seriesId && (
                 <div className="space-y-2 rounded-md border p-3">

@@ -124,14 +124,24 @@ export function RecordPaymentForm({
   outstandingCents,
   defaultMethod,
   today,
+  onRecorded,
 }: {
   jobId: string;
   outstandingCents: number;
   defaultMethod: string | null;
   today: string;
+  /** Called after a successful save, e.g. to refresh a parent list. */
+  onRecorded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, action, pending] = useActionState<FormState, FormData>(recordPayment.bind(null, jobId), {});
+  const [state, action, pending] = useActionState<FormState, FormData>(async (prev, fd) => {
+    const r = await recordPayment(jobId, prev, fd);
+    if (!r.error && !r.fieldErrors) {
+      setOpen(false);
+      onRecorded?.();
+    }
+    return r;
+  }, {});
   const e = state.fieldErrors ?? {};
 
   if (!open) {

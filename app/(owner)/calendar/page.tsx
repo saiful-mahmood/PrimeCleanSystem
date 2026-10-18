@@ -27,7 +27,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
   let query = supabase
     .from("jobs")
     .select(
-      "id, series_id, scheduled_start, duration_min, status, charge_cents, notes, clients!inner(name, type), service_types(name), locations(city), job_assignments(id, status, pay_cents, provider_id, providers(name))",
+      "id, series_id, scheduled_start, duration_min, status, charge_cents, charge_method, notes, clients!inner(name, type), service_types(name), locations(city), job_assignments(id, status, pay_cents, provider_id, providers(name)), payments(amount_cents)",
     )
     .gte("scheduled_start", startInstant.toISOString())
     .lt("scheduled_start", endInstant.toISOString())
@@ -56,6 +56,8 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         durationMin: j.duration_min,
         status: j.status,
         chargeCents: j.charge_cents,
+        receivedCents: j.payments.reduce((sum, p) => sum + p.amount_cents, 0),
+        chargeMethod: j.charge_method,
         clientName: j.clients?.name ?? "",
         clientType: j.clients?.type ?? "residential",
         serviceName: j.service_types?.name ?? "",
