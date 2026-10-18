@@ -38,6 +38,14 @@ disagree, this file wins. Dates are when the decision was made.
   local date; expenses by `paid_at`. The P&L screen shows both views; **"by job date" is the
   default** because that is what the owner is used to. The Phase 1 acceptance check compares
   `v_monthly_pnl_by_job` to the old tab.
+- **By-job P&L includes scheduled visits** (decided after the import, 2026-10-17): like the
+  sheet, every booked visit counts in its month whether or not it has happened or been paid;
+  only cancelled and skipped visits are excluded. Upcoming months are therefore a forecast.
+  Migration `0006`.
+- **The old sheet double-counted advertising**: its Overhead column already contained the ad
+  rows that the Ad Expense column subtracted again, understating profit by about $3,300 over
+  2024–2026. The app's figures are the corrected ones; `scripts/compare-pnl.mjs` shows the
+  month-by-month difference.
 - `v_ar_aging` keeps done-but-uninvoiced jobs as receivable from the cleaning date, including
   monthly-billed commercial clients.
 - `expenses.paid_at` stays a `date`.
