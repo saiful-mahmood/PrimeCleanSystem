@@ -8,12 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { CHARGE_METHODS, LOCATION_PUBLIC_COLUMNS } from "@/lib/types";
+import { StatusBadge } from "@/components/scheduling/status-badge";
+import { formatCents } from "@/lib/money";
+import { describeRule } from "@/lib/rrule";
+import { formatLocal } from "@/lib/tz";
 import { deleteLocationAction } from "../actions";
 
 export default async function ClientDetailPage({ params }: PageProps<"/clients/[id]">) {
   const { id } = await params;
   const supabase = await createClient();
-  const [{ data: client }, { data: locations }] = await Promise.all([
+  const [{ data: client }, { data: locations }, { data: series }, { data: jobs }] = await Promise.all([
     supabase.from("clients").select("*").eq("id", id).maybeSingle(),
     // Select the public columns plus a boolean for "has a code"; the ciphertext never leaves the server.
     supabase
@@ -21,6 +25,19 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
       .select(`${LOCATION_PUBLIC_COLUMNS}, lockbox_code_enc`)
       .eq("client_id", id)
       .order("created_at"),
+    supabase
+      .from("job_series")
+      .select("id, rrule, start_date, end_date, start_time, charge_cents, active, service_types(name)")
+      .eq("client_id", id)
+      .order("active", { ascending: false })
+      .order("start_date", { ascending: false }),
+    supabase
+      .from("jobs")
+      .select("id, scheduled_start, status, charge_cents")
+      .eq("client_id", id)
+      .gte("scheduled_start", new Date(new Date().getTime() - 30 * 86_400_000).toISOString())
+      .order("scheduled_start")
+      .limit(12),
   ]);
   if (!client) notFound();
 
@@ -162,10 +179,69 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
         </Card>
       </div>
 
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Recurring schedules</CardTitle>
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/series/new?client=${client.id}`} />}>
+              New recurring
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {(series ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No recurring schedule yet.</p>
+            ) : (
+              <ul className="divide-y text-sm">
+                {(series ?? []).map((s) => (
+                  <li key={s.id} className="flex items-center justify-between gap-2 py-2">
+                    <Link href={`/series/${s.id}`} className="hover:underline">
+                      {s.service_types?.name} · {describeRule(s)}
+                    </Link>
+                    <span className="text-muted-foreground">{s.active ? formatCents(s.charge_cents) : "ended"}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex-row items-center justify-between">
+            <CardTitle>Visits</CardTitle>
+            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/jobs/new?client=${client.id}`} />}>
+              New job
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {(jobs ?? []).length === 0 ? (
+              <p className="text-sm text-muted-foreground">No visits yet.</p>
+            ) : (
+              <ul className="divide-y text-sm">
+                {(jobs ?? []).map((j) => (
+                  <li key={j.id} className="flex items-center justify-between gap-2 py-2">
+                    <Link href={`/jobs/${j.id}`} className="hover:underline">
+                      {formatLocal(new Date(j.scheduled_start))}
+                    </Link>
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      {formatCents(j.charge_cents)}
+                      <StatusBadge status={j.status} />
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <p className="mt-3 text-xs text-muted-foreground">
+              <Link href={`/jobs?q=${encodeURIComponent(client.name)}&from=2020-01-01`} className="underline">
+                All visits for this client
+              </Link>
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="mt-4">
         <CardContent className="pt-6 text-sm text-muted-foreground">
-          Recurring series, upcoming and past jobs, proposals, invoices and lifetime margin appear here as those screens
-          are built (Sessions 2–6).
+          Proposals, invoices, payments and lifetime margin appear here in Sessions 4–6.
         </CardContent>
       </Card>
     </>

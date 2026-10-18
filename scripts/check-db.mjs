@@ -20,7 +20,7 @@ const tables = [
   "invoices", "invoice_jobs", "payments", "expenses", "messages", "magic_links", "audit_log",
   "settings",
 ];
-const views = ["v_job_economics", "v_monthly_pnl", "v_provider_owed", "v_ar_aging", "v_provider_ytd"];
+const views = ["v_job_economics", "v_monthly_pnl", "v_monthly_pnl_by_job", "v_provider_owed", "v_ar_aging", "v_provider_ytd"];
 
 let failed = 0;
 for (const name of [...tables, ...views]) {
