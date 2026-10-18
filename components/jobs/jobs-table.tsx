@@ -98,7 +98,7 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
               onChange={(ev) => setSelected(ev.target.checked ? new Set(payable.map((r) => r.id)) : new Set())}
               className="accent-primary"
             />
-            Select all unpaid ({payable.length})
+            Select all where the client still owes ({payable.length})
           </label>
           <span className="text-muted-foreground">
             {selectedRows.length} selected ·{" "}
@@ -110,7 +110,7 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
             disabled={selectedRows.length === 0}
             onClick={() => setFormOpen((o) => !o)}
           >
-            Record payment for selected
+            Record client payment for selected
           </Button>
         </div>
       )}
@@ -124,7 +124,7 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
             Recording <span className="font-medium tabular-nums">{formatCents(selectedTotal)}</span> across{" "}
             {selectedRows.length} visit
             {selectedRows.length === 1 ? "" : "s"} for {[...new Set(selectedRows.map((r) => r.clientName))].join(", ")}.
-            Each visit is marked paid in full.
+            Each visit is marked as paid by the client in full. (Paying your cleaners is separate, under Pay.)
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <SelectField
@@ -160,11 +160,11 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
               <TableHead>Client</TableHead>
               <TableHead className="hidden md:table-cell">Type</TableHead>
               <TableHead className="text-right">Charged</TableHead>
-              <TableHead className="hidden text-right lg:table-cell">Received</TableHead>
+              <TableHead className="hidden text-right lg:table-cell">Client paid</TableHead>
               <TableHead className="hidden text-right lg:table-cell">Fee</TableHead>
               <TableHead className="hidden sm:table-cell">Cleaner</TableHead>
               <TableHead className="hidden text-right sm:table-cell">Pay</TableHead>
-              <TableHead className="hidden sm:table-cell">Paid</TableHead>
+              <TableHead className="hidden sm:table-cell">Cleaner paid</TableHead>
               <TableHead className="text-right">Profit</TableHead>
               <TableHead className="hidden text-right md:table-cell">Margin</TableHead>
               <TableHead>Status</TableHead>
@@ -236,7 +236,7 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
                   <TableCell>
                     {unpaidDone ? (
                       <span className="inline-flex items-center rounded-md border border-orange-300 bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-900">
-                        Done · unpaid
+                        Done · client owes
                       </span>
                     ) : (
                       <StatusBadge status={r.status} />

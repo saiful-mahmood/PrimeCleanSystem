@@ -28,7 +28,7 @@ export type CalendarJob = {
   serviceName: string;
   city: string | null;
   notes: string | null;
-  assignments: { id: string; status: AssignmentStatus; payCents: number; providerName: string }[];
+  assignments: { id: string; status: AssignmentStatus; payCents: number; providerName: string; paid: boolean }[];
 };
 
 const MOVABLE: JobStatus[] = ["scheduled", "confirmed", "in_progress"];
@@ -204,10 +204,10 @@ function JobPanel({ job, onClose, today }: { job: CalendarJob | null; onClose: (
                       )}
                     >
                       {job.receivedCents >= job.chargeCents
-                        ? "paid"
+                        ? "client paid"
                         : job.receivedCents > 0
-                          ? `${formatCents(job.chargeCents - job.receivedCents)} still owed`
-                          : "not paid yet"}
+                          ? `${formatCents(job.chargeCents - job.receivedCents)} still owed by client`
+                          : "client has not paid"}
                     </span>
                   )}
                 </dd>
@@ -219,6 +219,11 @@ function JobPanel({ job, onClose, today }: { job: CalendarJob | null; onClose: (
                         <div key={a.id}>
                           {a.providerName} · {formatCents(a.payCents)} ·{" "}
                           <span className="text-muted-foreground">{ASSIGNMENT_LABEL[a.status]}</span>
+                          {(a.status === "done" || a.status === "cancelled_paid") && (
+                            <span className={cn("ml-1 text-xs", a.paid ? "text-emerald-700" : "text-amber-700")}>
+                              · {a.paid ? "cleaner paid" : "you owe the cleaner"}
+                            </span>
+                          )}
                         </div>
                       ))}
                 </dd>
@@ -327,8 +332,8 @@ function Legend() {
   const items = [
     { label: "Scheduled", color: statusMeta("scheduled").color },
     { label: "In progress", color: statusMeta("in_progress").color },
-    { label: "Done, paid", color: statusMeta("done").color },
-    { label: "Done, not paid", color: UNPAID_DONE_COLOR },
+    { label: "Done, client paid", color: statusMeta("done").color },
+    { label: "Done, client owes", color: UNPAID_DONE_COLOR },
     { label: "Cancelled / skipped", color: statusMeta("cancelled").color.replace(" line-through", "") },
   ];
   return (

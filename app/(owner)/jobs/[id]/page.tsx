@@ -229,10 +229,10 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[id]">)
 
           <Card>
             <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>Money</CardTitle>
+              <CardTitle>Client payment</CardTitle>
               {job.status !== "cancelled" && job.status !== "skipped" && (
                 <Badge variant={outstanding <= 0 ? "default" : "outline"}>
-                  {outstanding <= 0 ? "Paid in full" : `${formatCents(outstanding)} outstanding`}
+                  {outstanding <= 0 ? "Client paid in full" : `Client owes ${formatCents(outstanding)}`}
                 </Badge>
               )}
             </CardHeader>
@@ -240,7 +240,7 @@ export default async function JobDetailPage({ params }: PageProps<"/jobs/[id]">)
               <DetailList
                 items={[
                   ["Charged", formatCents(job.charge_cents)],
-                  ["Received", formatCents(received)],
+                  ["Client paid", formatCents(received)],
                   ["Processing fee", formatCents(Number(econ?.fee_cents ?? 0))],
                   ["Cleaner pay", formatCents(Number(econ?.provider_pay_cents ?? 0))],
                   [

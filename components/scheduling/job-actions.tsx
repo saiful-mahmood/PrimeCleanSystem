@@ -147,7 +147,7 @@ export function RecordPaymentForm({
   if (!open) {
     return (
       <Button size="sm" onClick={() => setOpen(true)}>
-        Record payment
+        Record client payment
       </Button>
     );
   }
@@ -199,7 +199,7 @@ export function RecordPaymentForm({
         error={e.fee_cents}
         hint="Leave blank for Zelle, check, cash or Venmo."
       />
-      <FormActions pending={pending} submitLabel="Record payment" error={state.error} />
+      <FormActions pending={pending} submitLabel="Record client payment" error={state.error} />
       <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>
         Cancel
       </Button>
