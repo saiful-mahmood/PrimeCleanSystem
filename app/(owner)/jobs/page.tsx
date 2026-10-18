@@ -49,7 +49,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   ]);
   if (error) throw new Error(error.message);
 
-  const totals = (rows ?? []).reduce(
+  const counted = (rows ?? []).filter((r) => r.status !== "cancelled" && r.status !== "skipped");
+  const totals = counted.reduce(
     (t, r) => ({
       charge: t.charge + (r.charge_cents ?? 0),
       fee: t.fee + Number(r.fee_cents ?? 0),
@@ -167,10 +168,12 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
                 <TableCell
                   className={`text-right tabular-nums ${Number(r.profit_cents ?? 0) < 0 ? "text-destructive" : ""}`}
                 >
-                  {formatCents(Number(r.profit_cents ?? 0))}
+                  {r.status === "cancelled" || r.status === "skipped" ? "—" : formatCents(Number(r.profit_cents ?? 0))}
                 </TableCell>
                 <TableCell className="hidden text-right tabular-nums md:table-cell">
-                  {r.profit_margin_pct != null ? `${r.profit_margin_pct}%` : "—"}
+                  {r.profit_margin_pct != null && r.status !== "cancelled" && r.status !== "skipped"
+                    ? `${r.profit_margin_pct}%`
+                    : "—"}
                 </TableCell>
                 <TableCell>
                   <StatusBadge status={r.status!} />

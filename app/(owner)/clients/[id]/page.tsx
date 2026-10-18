@@ -183,7 +183,12 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Recurring schedules</CardTitle>
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/series/new?client=${client.id}`} />}>
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/series/new?client=${client.id}`} />}
+            >
               New recurring
             </Button>
           </CardHeader>
@@ -208,7 +213,12 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Visits</CardTitle>
-            <Button size="sm" variant="outline" nativeButton={false} render={<Link href={`/jobs/new?client=${client.id}`} />}>
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/jobs/new?client=${client.id}`} />}
+            >
               New job
             </Button>
           </CardHeader>

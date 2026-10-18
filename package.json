@@ -14,7 +14,8 @@
     "db:push": "supabase db push",
     "db:link": "supabase link",
     "db:check": "node scripts/check-db.mjs",
-    "dev:login": "node scripts/dev-login-link.mjs"
+    "dev:login": "node scripts/dev-login-link.mjs",
+    "test:db": "vitest run --config vitest.db.config.mts"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",

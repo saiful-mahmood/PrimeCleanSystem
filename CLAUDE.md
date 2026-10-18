@@ -63,7 +63,8 @@ magic links by SMS.
 ```
 pnpm dev            # local dev server
 pnpm typecheck
-pnpm test           # vitest
+pnpm test           # vitest (pure unit tests)
+pnpm test:db        # vitest against the hosted database (payout ledger guards); needs .env.local
 pnpm test:e2e       # playwright
 pnpm db:push        # supabase db push to the hosted project (migrations in supabase/migrations)
 pnpm db:check       # query every table and view on the hosted project; run after each migration
