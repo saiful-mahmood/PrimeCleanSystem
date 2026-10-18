@@ -1,9 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
-  cacheComponents: true,
-  partialPrefetching: true,
+  // Every owner page reads the session cookie and live data, so the
+  // request-time rendering model fits better than Cache Components here.
+  cacheComponents: false,
   turbopack: {
     rules: {
       "*.css": {
