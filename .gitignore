@@ -34,3 +34,6 @@ Thumbs.db
 
 # Claude Code
 .claude/
+
+# Real sheet exports for the import wizard (contain lockbox codes); never committed
+data/imports/real/
