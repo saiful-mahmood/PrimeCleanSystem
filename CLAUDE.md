@@ -85,5 +85,5 @@ lib/                 db client, money, tz, rrule helpers, crypto (lockbox), stri
 supabase/migrations/ SQL migrations (0001_init.sql is already written; do not rewrite it)
 data/imports/        CSV templates matching the old Google Sheet tabs
 templates/           proposal template(s)
-docs/                PROMPTS.md, IMPORT_MAPPING.md, DECISIONS.md
+docs/                PROMPTS.md, IMPORT_MAPPING.md, DECISIONS.md, DEPLOY.md
 ```
