@@ -274,6 +274,31 @@ export async function todayForForms() {
 }
 
 /**
+ * A visit may be billed through an invoice (commercial monthly billing or
+ * imported "In Progress" rows). After a payment lands on such a visit, link
+ * the payment to the invoice and mark the invoice paid once covered.
+ */
+async function settleInvoiceForJobs(supabase: Awaited<ReturnType<typeof createClient>>, jobIds: string[]) {
+  if (jobIds.length === 0) return;
+  const { data: links } = await supabase.from("invoice_jobs").select("invoice_id, job_id").in("job_id", jobIds);
+  const invoiceIds = [...new Set((links ?? []).map((l) => l.invoice_id))];
+  if (invoiceIds.length === 0) return;
+  for (const l of links ?? []) {
+    await supabase.from("payments").update({ invoice_id: l.invoice_id }).eq("job_id", l.job_id).is("invoice_id", null);
+  }
+  const [{ data: invoices }, { data: pays }] = await Promise.all([
+    supabase.from("invoices").select("id, amount_cents, status").in("id", invoiceIds),
+    supabase.from("payments").select("invoice_id, amount_cents").in("invoice_id", invoiceIds),
+  ]);
+  for (const inv of invoices ?? []) {
+    const paid = (pays ?? []).filter((p) => p.invoice_id === inv.id).reduce((s, p) => s + p.amount_cents, 0);
+    if (inv.status === "sent" && paid >= inv.amount_cents) {
+      await supabase.from("invoices").update({ status: "paid", paid_at: new Date().toISOString() }).eq("id", inv.id);
+    }
+  }
+}
+
+/**
  * The client paid: record money received against this visit. Zelle, check,
  * cash and Venmo are entered by hand; Stripe rows will come from the webhook
  * in Session 4 and look the same. Payments are never deleted (rule 3).
@@ -300,6 +325,7 @@ export async function recordPayment(jobId: string, _prev: FormState, formData: F
   });
   if (error) return { error: error.message };
 
+  await settleInvoiceForJobs(supabase, [jobId]);
   await audit(supabase, "job.payment_recorded", jobId, {
     method: d.method,
     amount_cents: d.amount_cents,
@@ -354,6 +380,10 @@ export async function recordBulkPayment(_prev: FormState, formData: FormData): P
   const { error } = await supabase.from("payments").insert(rows);
   if (error) return { error: error.message };
 
+  await settleInvoiceForJobs(
+    supabase,
+    rows.map((r) => r.job_id),
+  );
   const total = rows.reduce((s, r) => s + r.amount_cents, 0);
   await supabase.from("audit_log").insert(
     rows.map((r) => ({
