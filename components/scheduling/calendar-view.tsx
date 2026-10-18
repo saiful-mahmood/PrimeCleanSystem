@@ -32,6 +32,8 @@ export type CalendarJob = {
 };
 
 const MOVABLE: JobStatus[] = ["scheduled", "confirmed", "in_progress"];
+/** Done, but the client has not paid (or it has not been recorded). */
+export const UNPAID_DONE_COLOR = "bg-orange-100 text-orange-900 border-orange-300";
 
 function time12(t: string) {
   const [h, m] = t.split(":").map(Number);
@@ -128,6 +130,8 @@ export function CalendarView({
         })}
       </div>
 
+      <Legend />
+
       <JobPanel job={selected} onClose={() => setSelected(null)} today={today} />
     </>
   );
@@ -135,6 +139,7 @@ export function CalendarView({
 
 function JobChip({ job, compact, onSelect }: { job: CalendarJob; compact: boolean; onSelect: () => void }) {
   const meta = statusMeta(job.status);
+  const unpaidDone = job.status === "done" && job.receivedCents < job.chargeCents;
   const movable = MOVABLE.includes(job.status);
   const who = job.assignments.map((a) => a.providerName).join(", ");
   return (
@@ -148,7 +153,7 @@ function JobChip({ job, compact, onSelect }: { job: CalendarJob; compact: boolea
       onClick={onSelect}
       className={cn(
         "w-full rounded border px-1.5 py-1 text-left text-xs leading-tight",
-        meta.color,
+        unpaidDone ? UNPAID_DONE_COLOR : meta.color,
         movable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       )}
       title={`${job.clientName} · ${job.serviceName}${who ? ` · ${who}` : ""}`}
@@ -315,5 +320,25 @@ function JobPanel({ job, onClose, today }: { job: CalendarJob | null; onClose: (
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+function Legend() {
+  const items = [
+    { label: "Scheduled", color: statusMeta("scheduled").color },
+    { label: "In progress", color: statusMeta("in_progress").color },
+    { label: "Done, paid", color: statusMeta("done").color },
+    { label: "Done, not paid", color: UNPAID_DONE_COLOR },
+    { label: "Cancelled / skipped", color: statusMeta("cancelled").color.replace(" line-through", "") },
+  ];
+  return (
+    <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+      {items.map((i) => (
+        <span key={i.label} className="inline-flex items-center gap-1.5">
+          <span className={cn("inline-block size-3 rounded-sm border", i.color)} />
+          {i.label}
+        </span>
+      ))}
+    </div>
   );
 }

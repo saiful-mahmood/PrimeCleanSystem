@@ -176,7 +176,13 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
                     : "—"}
                 </TableCell>
                 <TableCell>
-                  <StatusBadge status={r.status!} />
+                  {r.status === "done" && !r.fully_paid ? (
+                    <span className="inline-flex items-center rounded-md border border-orange-300 bg-orange-100 px-1.5 py-0.5 text-xs font-medium text-orange-900">
+                      Done · unpaid
+                    </span>
+                  ) : (
+                    <StatusBadge status={r.status!} />
+                  )}
                 </TableCell>
               </TableRow>
             ))}
