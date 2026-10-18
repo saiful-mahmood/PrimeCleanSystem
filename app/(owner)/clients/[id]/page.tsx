@@ -40,7 +40,9 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
         }
         description={client.basic_info ?? undefined}
       >
-        <Button render={<Link href={`/clients/${client.id}/edit`} />}>Edit</Button>
+        <Button nativeButton={false} render={<Link href={`/clients/${client.id}/edit`} />}>
+          Edit
+        </Button>
       </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -78,7 +80,12 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <CardTitle>Locations</CardTitle>
-            <Button size="sm" variant="outline" render={<Link href={`/clients/${client.id}/locations/new`} />}>
+            <Button
+              size="sm"
+              variant="outline"
+              nativeButton={false}
+              render={<Link href={`/clients/${client.id}/locations/new`} />}
+            >
               Add location
             </Button>
           </CardHeader>
@@ -101,13 +108,19 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
                 .filter(Boolean)
                 .join(" · ");
               const hasLockbox = !!loc.lockbox_code_enc;
+              const isEmpty = !address && !hasLockbox && !loc.scope_of_work;
               return (
                 <div key={loc.id} className="rounded-md border p-3">
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="font-medium">{loc.label}</span>
                     <div className="flex gap-1">
-                      <Button size="sm" variant="ghost" render={<Link href={`/locations/${loc.id}/edit`} />}>
-                        Edit
+                      <Button
+                        size="sm"
+                        variant={isEmpty ? "default" : "ghost"}
+                        nativeButton={false}
+                        render={<Link href={`/locations/${loc.id}/edit`} />}
+                      >
+                        {isEmpty ? "Add address and lockbox" : "Edit"}
                       </Button>
                       {(locations ?? []).length > 1 && (
                         <form action={deleteLocationAction.bind(null, loc.id)}>
@@ -132,7 +145,12 @@ export default async function ClientDetailPage({ params }: PageProps<"/clients/[
                             {loc.lockbox_hint && <span className="text-muted-foreground">{loc.lockbox_hint}</span>}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground">none stored</span>
+                          <span className="text-muted-foreground">
+                            none stored ·{" "}
+                            <Link href={`/locations/${loc.id}/edit`} className="underline">
+                              add one
+                            </Link>
+                          </span>
                         ),
                       ],
                     ]}

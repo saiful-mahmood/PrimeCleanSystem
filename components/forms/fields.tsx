@@ -158,7 +158,7 @@ export function FormActions({
           {pending ? "Saving…" : submitLabel}
         </Button>
         {cancelHref && (
-          <Button type="button" variant="ghost" render={<a href={cancelHref} />}>
+          <Button type="button" variant="ghost" nativeButton={false} render={<a href={cancelHref} />}>
             Cancel
           </Button>
         )}

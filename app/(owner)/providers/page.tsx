@@ -30,10 +30,16 @@ export default async function ProvidersPage({ searchParams }: PageProps<"/provid
   return (
     <>
       <PageHeader title="Cleaners" description={`${providers?.length ?? 0} ${showInactive ? "total" : "active"}`}>
-        <Button variant="outline" render={<Link href={showInactive ? "/providers" : "/providers?show=all"} />}>
+        <Button
+          variant="outline"
+          nativeButton={false}
+          render={<Link href={showInactive ? "/providers" : "/providers?show=all"} />}
+        >
           {showInactive ? "Active only" : "Show inactive"}
         </Button>
-        <Button render={<Link href="/providers/new" />}>Add cleaner</Button>
+        <Button nativeButton={false} render={<Link href="/providers/new" />}>
+          Add cleaner
+        </Button>
       </PageHeader>
 
       {providers && providers.length > 0 ? (

@@ -41,7 +41,9 @@ export default async function ProviderDetailPage({ params }: PageProps<"/provide
             {provider.active ? "Deactivate" : "Reactivate"}
           </Button>
         </form>
-        <Button render={<Link href={`/providers/${provider.id}/edit`} />}>Edit</Button>
+        <Button nativeButton={false} render={<Link href={`/providers/${provider.id}/edit`} />}>
+          Edit
+        </Button>
       </PageHeader>
 
       <div className="grid gap-4 md:grid-cols-2">

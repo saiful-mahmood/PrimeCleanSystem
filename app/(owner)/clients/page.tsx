@@ -27,7 +27,9 @@ export default async function ClientsPage({ searchParams }: PageProps<"/clients"
   return (
     <>
       <PageHeader title="Clients" description={`${clients?.length ?? 0} shown`}>
-        <Button render={<Link href="/clients/new" />}>Add client</Button>
+        <Button nativeButton={false} render={<Link href="/clients/new" />}>
+          Add client
+        </Button>
       </PageHeader>
 
       <form className="mb-4 flex flex-wrap gap-2" action="/clients">
@@ -46,7 +48,7 @@ export default async function ClientsPage({ searchParams }: PageProps<"/clients"
           Filter
         </Button>
         {(q || status) && (
-          <Button variant="ghost" render={<Link href="/clients" />}>
+          <Button variant="ghost" nativeButton={false} render={<Link href="/clients" />}>
             Clear
           </Button>
         )}
