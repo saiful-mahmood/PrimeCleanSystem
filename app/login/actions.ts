@@ -2,8 +2,7 @@
 
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
-import { isOwnerEmail } from "@/lib/auth";
-import { serverEnv } from "@/lib/env";
+import { isOwnerEmail, requestOrigin } from "@/lib/auth";
 
 export type LoginState = { status: "idle" } | { status: "sent"; email: string } | { status: "error"; message: string };
 
@@ -26,7 +25,9 @@ export async function sendMagicLink(_prev: LoginState, formData: FormData): Prom
   const { error } = await supabase.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: `${serverEnv().NEXT_PUBLIC_APP_URL}/auth/callback`,
+      // The host the owner is actually using (vercel.app, a custom domain, or
+      // localhost), so the emailed link comes back to the same place.
+      emailRedirectTo: `${await requestOrigin()}/auth/callback`,
       shouldCreateUser: true,
     },
   });

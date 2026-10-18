@@ -9,7 +9,8 @@ const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
 
 // Import counts
 const { data: audit } = await db.from("audit_log").select("meta, created_at").eq("action", "import.commit").order("created_at", { ascending: false }).limit(1).maybeSingle();
-const { ids, ...counts } = audit?.meta ?? {};
+const { ids: _ids, ...counts } = audit?.meta ?? {};
+void _ids;
 console.log("import.commit:", audit?.created_at, JSON.stringify(counts));
 
 // Old tab
