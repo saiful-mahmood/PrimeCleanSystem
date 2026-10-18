@@ -10,7 +10,7 @@ export function AppShell({ children, email }: { children: React.ReactNode; email
       <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/80">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4">
           <MobileNav email={email} />
-          <Link href="/" className="font-semibold tracking-tight">
+          <Link href="/" className="whitespace-nowrap font-semibold tracking-tight">
             Prime Clean Care
           </Link>
           <nav className="ml-6 hidden items-center gap-1 md:flex">

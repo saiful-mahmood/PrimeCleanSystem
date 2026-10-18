@@ -3,6 +3,7 @@ export const NAV_ITEMS = [
   { href: "/calendar", label: "Calendar" },
   { href: "/jobs", label: "Jobs" },
   { href: "/pay", label: "Pay" },
+  { href: "/quotes", label: "Quotes" },
   { href: "/clients", label: "Clients" },
   { href: "/providers", label: "Cleaners" },
   { href: "/expenses", label: "Expenses" },
