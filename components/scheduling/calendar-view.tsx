@@ -6,7 +6,7 @@ import { useState, useTransition, type DragEvent } from "react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { rescheduleJob, skipJob, markJobDone, reassignCleaner } from "@/app/(owner)/jobs/actions";
+import { rescheduleJob, skipJob, markJobDone, reassignCleaner, updateJobCharge } from "@/app/(owner)/jobs/actions";
 import { RecordPaymentForm } from "./job-actions";
 import { formatCents } from "@/lib/money";
 import { statusMeta, type AssignmentStatus, type JobStatus, ASSIGNMENT_LABEL } from "@/lib/scheduling/shared";
@@ -250,6 +250,16 @@ function JobPanel({
               </dl>
 
               {job.status !== "cancelled" && job.status !== "skipped" && (
+                <PricePicker
+                  key={`price-${job.id}`}
+                  job={job}
+                  onSaved={() => {
+                    router.refresh();
+                    onClose();
+                  }}
+                />
+              )}
+              {job.status !== "cancelled" && job.status !== "skipped" && (
                 <CleanerPicker
                   key={job.id}
                   job={job}
@@ -469,6 +479,61 @@ function CleanerPicker({
         Changes only this visit. The series keeps its default cleaner; use &quot;Edit this and future&quot; to change
         that.
       </p>
+    </div>
+  );
+}
+
+/** Change the client price for one visit from the calendar. */
+function PricePicker({ job, onSaved }: { job: CalendarJob; onSaved: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [price, setPrice] = useState((job.chargeCents / 100).toFixed(2));
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const cents = Math.round(Number(price.replace(/[$,\s]/g, "")) * 100);
+
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        Change price
+      </Button>
+    );
+  }
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <p className="text-xs font-medium text-muted-foreground">Client price for this visit only</p>
+      <div className="flex gap-2">
+        <input
+          value={price}
+          onChange={(e) => setPrice(e.target.value)}
+          inputMode="decimal"
+          aria-label="Client price"
+          autoFocus
+          className="h-9 w-32 rounded-md border border-input bg-transparent px-2 text-sm"
+        />
+        <Button
+          size="sm"
+          disabled={pending || !Number.isFinite(cents) || cents < 0}
+          onClick={() =>
+            start(async () => {
+              setError(null);
+              const r = await updateJobCharge(job.id, cents);
+              if (r.error) setError(r.error);
+              else onSaved();
+            })
+          }
+        >
+          {pending ? "Saving…" : "Save price"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      {job.receivedCents > 0 && (
+        <p className="text-xs text-muted-foreground">
+          The client has already paid {formatCents(job.receivedCents)}; the difference shows as owed or overpaid.
+        </p>
+      )}
     </div>
   );
 }

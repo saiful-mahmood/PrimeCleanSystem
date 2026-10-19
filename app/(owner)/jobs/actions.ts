@@ -461,3 +461,19 @@ export async function reassignCleaner(
   revalidatePath("/providers");
   return {};
 }
+
+/** Change what the client is charged for one visit (from the calendar). */
+export async function updateJobCharge(jobId: string, chargeCents: number): Promise<{ error?: string }> {
+  await requireOwner();
+  if (!Number.isInteger(chargeCents) || chargeCents < 0) return { error: "Enter a price." };
+  const supabase = await createClient();
+  const { data: job } = await supabase.from("jobs").select("charge_cents, status").eq("id", jobId).maybeSingle();
+  if (!job) return { error: "Job not found." };
+  if (job.status === "cancelled" || job.status === "skipped") return { error: `A ${job.status} visit has no price.` };
+  if (job.charge_cents === chargeCents) return {};
+  const { error } = await supabase.from("jobs").update({ charge_cents: chargeCents }).eq("id", jobId);
+  if (error) return { error: error.message };
+  await audit(supabase, "job.price_changed", jobId, { from_cents: job.charge_cents, to_cents: chargeCents });
+  revalidateJob(jobId);
+  return {};
+}
