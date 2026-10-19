@@ -6,7 +6,14 @@ import { useState, useTransition, type DragEvent } from "react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { rescheduleJob, skipJob, markJobDone, reassignCleaner, updateJobCharge } from "@/app/(owner)/jobs/actions";
+import {
+  rescheduleJob,
+  skipJob,
+  markJobDone,
+  reassignCleaner,
+  updateJobCharge,
+  updateAssignmentPay,
+} from "@/app/(owner)/jobs/actions";
 import { RecordPaymentForm } from "./job-actions";
 import { formatCents } from "@/lib/money";
 import { statusMeta, type AssignmentStatus, type JobStatus, ASSIGNMENT_LABEL } from "@/lib/scheduling/shared";
@@ -483,55 +490,92 @@ function CleanerPicker({
   );
 }
 
-/** Change the client price for one visit from the calendar. */
+/** Change the client price and/or the cleaner's pay for one visit from the calendar. */
 function PricePicker({ job, onSaved }: { job: CalendarJob; onSaved: () => void }) {
+  const assignment = job.assignments[0];
+  const payLocked = !!assignment?.paid;
   const [open, setOpen] = useState(false);
   const [price, setPrice] = useState((job.chargeCents / 100).toFixed(2));
+  const [pay, setPay] = useState(assignment ? (assignment.payCents / 100).toFixed(2) : "");
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
-  const cents = Math.round(Number(price.replace(/[$,\s]/g, "")) * 100);
+  const toCents = (v: string) => Math.round(Number(v.replace(/[$,\s]/g, "")) * 100);
+  const priceCents = toCents(price);
+  const payCents = toCents(pay);
+  const priceChanged = Number.isFinite(priceCents) && priceCents !== job.chargeCents;
+  const payChanged =
+    !!assignment && !payLocked && pay.trim() !== "" && Number.isFinite(payCents) && payCents !== assignment.payCents;
 
   if (!open) {
     return (
       <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
-        Change price
+        Change price or pay
       </Button>
     );
   }
   return (
     <div className="space-y-2 rounded-md border p-3">
-      <p className="text-xs font-medium text-muted-foreground">Client price for this visit only</p>
+      <p className="text-xs font-medium text-muted-foreground">This visit only</p>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="space-y-1 text-xs">
+          <span className="text-muted-foreground">Client price</span>
+          <input
+            value={price}
+            onChange={(e) => setPrice(e.target.value)}
+            inputMode="decimal"
+            autoFocus
+            className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm"
+          />
+        </label>
+        <label className="space-y-1 text-xs">
+          <span className="text-muted-foreground">
+            {assignment ? `Pay to ${assignment.providerName}` : "Cleaner pay"}
+          </span>
+          <input
+            value={pay}
+            onChange={(e) => setPay(e.target.value)}
+            inputMode="decimal"
+            disabled={!assignment || payLocked}
+            placeholder={assignment ? "" : "assign a cleaner first"}
+            className="h-9 w-full rounded-md border border-input bg-transparent px-2 text-sm disabled:opacity-60"
+          />
+        </label>
+      </div>
+      {payLocked && (
+        <p className="text-xs text-muted-foreground">
+          {assignment?.providerName} has been paid for this visit, so the pay is frozen.
+        </p>
+      )}
+      {error && <p className="text-xs text-destructive">{error}</p>}
       <div className="flex gap-2">
-        <input
-          value={price}
-          onChange={(e) => setPrice(e.target.value)}
-          inputMode="decimal"
-          aria-label="Client price"
-          autoFocus
-          className="h-9 w-32 rounded-md border border-input bg-transparent px-2 text-sm"
-        />
         <Button
           size="sm"
-          disabled={pending || !Number.isFinite(cents) || cents < 0}
+          disabled={pending || (!priceChanged && !payChanged)}
           onClick={() =>
             start(async () => {
               setError(null);
-              const r = await updateJobCharge(job.id, cents);
-              if (r.error) setError(r.error);
-              else onSaved();
+              if (priceChanged) {
+                const r = await updateJobCharge(job.id, priceCents);
+                if (r.error) return setError(r.error);
+              }
+              if (payChanged && assignment) {
+                const r = await updateAssignmentPay(assignment.id, job.id, payCents);
+                if (r.error) return setError(r.error);
+              }
+              onSaved();
             })
           }
         >
-          {pending ? "Saving…" : "Save price"}
+          {pending ? "Saving…" : "Save"}
         </Button>
         <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
           Cancel
         </Button>
       </div>
-      {error && <p className="text-xs text-destructive">{error}</p>}
       {job.receivedCents > 0 && (
         <p className="text-xs text-muted-foreground">
-          The client has already paid {formatCents(job.receivedCents)}; the difference shows as owed or overpaid.
+          The client has already paid {formatCents(job.receivedCents)}; a new price shows the difference as owed or
+          overpaid.
         </p>
       )}
     </div>

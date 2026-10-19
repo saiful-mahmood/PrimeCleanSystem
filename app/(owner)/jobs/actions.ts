@@ -477,3 +477,33 @@ export async function updateJobCharge(jobId: string, chargeCents: number): Promi
   revalidateJob(jobId);
   return {};
 }
+
+/** Change what a cleaner is paid for one visit. Refused once the assignment is in a payout (the DB freezes it too). */
+export async function updateAssignmentPay(
+  assignmentId: string,
+  jobId: string,
+  payCents: number,
+): Promise<{ error?: string }> {
+  await requireOwner();
+  if (!Number.isInteger(payCents) || payCents < 0) return { error: "Enter a pay amount." };
+  const supabase = await createClient();
+  const { data: a } = await supabase
+    .from("job_assignments")
+    .select("pay_cents, payout_id, provider_id")
+    .eq("id", assignmentId)
+    .eq("job_id", jobId)
+    .maybeSingle();
+  if (!a) return { error: "Assignment not found." };
+  if (a.payout_id) return { error: "This cleaner has already been paid for this visit; the pay is frozen." };
+  if (a.pay_cents === payCents) return {};
+  const { error } = await supabase.from("job_assignments").update({ pay_cents: payCents }).eq("id", assignmentId);
+  if (error) return { error: error.message };
+  await audit(supabase, "job.pay_changed", jobId, {
+    provider_id: a.provider_id,
+    from_cents: a.pay_cents,
+    to_cents: payCents,
+  });
+  revalidateJob(jobId);
+  revalidatePath("/pay");
+  return {};
+}
