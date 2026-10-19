@@ -6,12 +6,14 @@ import { useState, useTransition, type DragEvent } from "react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { rescheduleJob, skipJob, markJobDone } from "@/app/(owner)/jobs/actions";
+import { rescheduleJob, skipJob, markJobDone, reassignCleaner } from "@/app/(owner)/jobs/actions";
 import { RecordPaymentForm } from "./job-actions";
 import { formatCents } from "@/lib/money";
 import { statusMeta, type AssignmentStatus, type JobStatus, ASSIGNMENT_LABEL } from "@/lib/scheduling/shared";
 import { cn } from "@/lib/utils";
 import { StatusBadge } from "./status-badge";
+
+export type ProviderOption = { id: string; name: string; default_pay_cents: number | null };
 
 export type CalendarJob = {
   id: string;
@@ -47,12 +49,14 @@ export function CalendarView({
   anchorMonth,
   today,
   jobs,
+  providers,
 }: {
   view: "week" | "month";
   days: string[];
   anchorMonth: string;
   today: string;
   jobs: CalendarJob[];
+  providers: ProviderOption[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<CalendarJob | null>(null);
@@ -132,7 +136,7 @@ export function CalendarView({
 
       <Legend />
 
-      <JobPanel job={selected} onClose={() => setSelected(null)} today={today} />
+      <JobPanel job={selected} onClose={() => setSelected(null)} today={today} providers={providers} />
     </>
   );
 }
@@ -169,7 +173,17 @@ function JobChip({ job, compact, onSelect }: { job: CalendarJob; compact: boolea
   );
 }
 
-function JobPanel({ job, onClose, today }: { job: CalendarJob | null; onClose: () => void; today: string }) {
+function JobPanel({
+  job,
+  onClose,
+  today,
+  providers,
+}: {
+  job: CalendarJob | null;
+  onClose: () => void;
+  today: string;
+  providers: ProviderOption[];
+}) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const open = !!job;
@@ -234,6 +248,18 @@ function JobPanel({ job, onClose, today }: { job: CalendarJob | null; onClose: (
                   </>
                 )}
               </dl>
+
+              {job.status !== "cancelled" && job.status !== "skipped" && (
+                <CleanerPicker
+                  key={job.id}
+                  job={job}
+                  providers={providers}
+                  onSaved={() => {
+                    router.refresh();
+                    onClose();
+                  }}
+                />
+              )}
 
               <div className="flex flex-wrap gap-2">
                 <Button size="sm" nativeButton={false} render={<Link href={`/jobs/${job.id}`} />}>
@@ -344,6 +370,105 @@ function Legend() {
           {i.label}
         </span>
       ))}
+    </div>
+  );
+}
+
+/**
+ * Change the cleaner for one visit from the calendar. The current unpaid
+ * assignment is replaced; a paid one cannot be changed (the button says so).
+ */
+function CleanerPicker({
+  job,
+  providers,
+  onSaved,
+}: {
+  job: CalendarJob;
+  providers: ProviderOption[];
+  onSaved: () => void;
+}) {
+  const current = job.assignments[0];
+  const locked = job.assignments.some((a) => a.paid);
+  const [open, setOpen] = useState(false);
+  const [providerId, setProviderId] = useState(
+    current?.id ? (providers.find((p) => p.name === current.providerName)?.id ?? "") : "",
+  );
+  const [pay, setPay] = useState(current ? (current.payCents / 100).toFixed(2) : "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+
+  if (locked) {
+    return (
+      <p className="text-xs text-muted-foreground">
+        The cleaner has been paid for this visit, so it cannot be reassigned.
+      </p>
+    );
+  }
+  if (!open) {
+    return (
+      <Button size="sm" variant="outline" onClick={() => setOpen(true)}>
+        {current ? "Change cleaner" : "Assign a cleaner"}
+      </Button>
+    );
+  }
+  const cents = Math.round(Number(pay.replace(/[$,\s]/g, "")) * 100);
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <p className="text-xs font-medium text-muted-foreground">
+        {current ? `Replace ${current.providerName} on this visit only` : "Cleaner for this visit"}
+      </p>
+      <div className="grid grid-cols-[1fr_6rem] gap-2">
+        <select
+          value={providerId}
+          onChange={(e) => {
+            const id = e.target.value;
+            setProviderId(id);
+            const p = providers.find((x) => x.id === id);
+            if (p?.default_pay_cents != null && !current) setPay((p.default_pay_cents / 100).toFixed(2));
+          }}
+          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+          aria-label="Cleaner"
+        >
+          <option value="">Choose a cleaner</option>
+          {providers.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.name}
+            </option>
+          ))}
+        </select>
+        <input
+          value={pay}
+          onChange={(e) => setPay(e.target.value)}
+          inputMode="decimal"
+          placeholder="Pay"
+          aria-label="Cleaner pay"
+          className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
+        />
+      </div>
+      {error && <p className="text-xs text-destructive">{error}</p>}
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          disabled={pending || !providerId || !Number.isFinite(cents)}
+          onClick={() =>
+            start(async () => {
+              setError(null);
+              const r = await reassignCleaner(job.id, providerId, cents);
+              if (r.error) setError(r.error);
+              else onSaved();
+            })
+          }
+        >
+          {pending ? "Saving…" : "Save cleaner"}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={() => setOpen(false)}>
+          Cancel
+        </Button>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        Changes only this visit. The series keeps its default cleaner; use &quot;Edit this and future&quot; to change
+        that.
+      </p>
     </div>
   );
 }

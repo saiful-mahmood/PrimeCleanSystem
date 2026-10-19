@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Calendar" };
 
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   const sp = await searchParams;
-  const view: View = sp.view === "month" ? "month" : "week";
+  const view: View = sp.view === "week" ? "week" : "month";
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) ? sp.date : localDate(new Date());
   const providerFilter = typeof sp.provider === "string" ? sp.provider : "";
   const statusFilter = typeof sp.status === "string" ? sp.status : "";
@@ -37,7 +37,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
 
   const [{ data: rows, error }, { data: providers }] = await Promise.all([
     query,
-    supabase.from("providers").select("id, name").eq("active", true).order("name"),
+    supabase.from("providers").select("id, name, default_pay_cents").eq("active", true).order("name"),
   ]);
   if (error) throw new Error(error.message);
 
@@ -190,6 +190,7 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
         anchorMonth={date.slice(0, 7)}
         today={localDate(new Date())}
         jobs={jobs}
+        providers={providers ?? []}
       />
     </>
   );

@@ -400,3 +400,64 @@ export async function recordBulkPayment(_prev: FormState, formData: FormData): P
     message: `Recorded ${rows.length} payment${rows.length === 1 ? "" : "s"} totalling $${(total / 100).toFixed(2)}.`,
   };
 }
+
+/**
+ * Change who does a visit, from the calendar. Unpaid assignments are
+ * replaced; an assignment already in a payout is never touched (rule 4).
+ * The new assignment inherits the visit's state, so a reassigned done visit
+ * moves to the new cleaner's "owed" immediately.
+ */
+export async function reassignCleaner(
+  jobId: string,
+  providerId: string,
+  payCents: number,
+): Promise<{ error?: string }> {
+  await requireOwner();
+  if (!Number.isInteger(payCents) || payCents < 0) return { error: "Enter a pay amount." };
+  const supabase = await createClient();
+  const { data: job } = await supabase.from("jobs").select("status, completed_at").eq("id", jobId).maybeSingle();
+  if (!job) return { error: "Job not found." };
+  if (job.status === "cancelled" || job.status === "skipped") return { error: `A ${job.status} visit has no cleaner.` };
+
+  const { data: existing } = await supabase
+    .from("job_assignments")
+    .select("id, provider_id, payout_id, status")
+    .eq("job_id", jobId);
+  const paid = (existing ?? []).filter((a) => a.payout_id);
+  if (paid.some((a) => a.provider_id !== providerId)) {
+    return { error: "A cleaner has already been paid for this visit; it cannot be reassigned." };
+  }
+  const removable = (existing ?? []).filter((a) => !a.payout_id);
+  if (removable.length) {
+    const { error } = await supabase
+      .from("job_assignments")
+      .delete()
+      .in(
+        "id",
+        removable.map((a) => a.id),
+      );
+    if (error) return { error: error.message };
+  }
+
+  const done = job.status === "done";
+  const { error } = await supabase.from("job_assignments").insert({
+    job_id: jobId,
+    provider_id: providerId,
+    pay_cents: payCents,
+    status: done ? "done" : "offered",
+    done_at: done ? (job.completed_at ?? new Date().toISOString()) : null,
+  });
+  if (error) {
+    if (error.code === "23505") return { error: "That cleaner is already on this visit." };
+    return { error: error.message };
+  }
+  await audit(supabase, "job.reassign", jobId, {
+    provider_id: providerId,
+    pay_cents: payCents,
+    replaced: removable.map((a) => a.provider_id),
+  });
+  revalidateJob(jobId);
+  revalidatePath("/pay");
+  revalidatePath("/providers");
+  return {};
+}
