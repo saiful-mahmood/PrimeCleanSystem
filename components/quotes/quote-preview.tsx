@@ -23,14 +23,26 @@ function Paragraphs({ text }: { text: string }) {
   );
 }
 
-function QuoteTable({ columns, rows }: { columns: [string, string]; rows: { cells: [string, string] }[] }) {
+function QuoteTable({
+  columns,
+  rows,
+  leftPct,
+}: {
+  columns: [string, string];
+  rows: { cells: [string, string] }[];
+  leftPct: number;
+}) {
   if (rows.length === 0) return null;
   return (
     <table className="my-2 w-full border text-xs">
       <thead>
         <tr className="bg-[#1f3a5f] text-left text-white">
-          <th className="px-2 py-1 font-normal">{columns[0]}</th>
-          <th className="w-28 px-2 py-1 font-normal">{columns[1]}</th>
+          <th className="px-2 py-1 font-normal" style={{ width: `${leftPct}%` }}>
+            {columns[0]}
+          </th>
+          <th className="px-2 py-1 font-normal" style={{ width: `${100 - leftPct}%` }}>
+            {columns[1]}
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -61,7 +73,15 @@ function Signature({ name }: { name: string }) {
 }
 
 /** HTML rendering of a quote snapshot; mirrors the PDF layout for on-screen review. */
-export function QuotePreview({ fields, quoteNumber, versionNo }: { fields: QuoteFields; quoteNumber: string; versionNo: number }) {
+export function QuotePreview({
+  fields,
+  quoteNumber,
+  versionNo,
+}: {
+  fields: QuoteFields;
+  quoteNumber: string;
+  versionNo: number;
+}) {
   const sec = fields.sections;
   const total = formatQuoteMoney(quoteTotalCents(fields));
 
@@ -95,6 +115,7 @@ export function QuotePreview({ fields, quoteNumber, versionNo }: { fields: Quote
       <QuoteTable
         columns={SECTION_BY_KEY.quote_lines.columns!}
         rows={[...parseTable(sec.quote_lines), { cells: ["TOTAL PROJECT QUOTE", total] }]}
+        leftPct={fields.layout.quote_col_pct}
       />
       <div className="flex border border-[#1f3a5f]">
         <div className={`flex-1 bg-[#e8eef5] px-4 py-2 font-bold ${NAVY}`}>TOTAL PROJECT QUOTE</div>
@@ -109,23 +130,36 @@ export function QuotePreview({ fields, quoteNumber, versionNo }: { fields: Quote
       )}
 
       <H3>3. Detailed Scope of Work</H3>
-      <p>The following descriptions define exactly what will be cleaned. Work is limited to the listed surfaces and areas.</p>
-      <QuoteTable columns={SECTION_BY_KEY.scope_details.columns!} rows={parseTable(sec.scope_details)} />
+      <p>
+        The following descriptions define exactly what will be cleaned. Work is limited to the listed surfaces and
+        areas.
+      </p>
+      <QuoteTable
+        columns={SECTION_BY_KEY.scope_details.columns!}
+        rows={parseTable(sec.scope_details)}
+        leftPct={fields.layout.scope_col_pct}
+      />
       <Paragraphs text={sec.process_notes} />
 
       <H3>4. Exclusions</H3>
       <p>
-        The following items are specifically excluded from this quote. They will not be cleaned unless added to the scope
-        and priced separately.
+        The following items are specifically excluded from this quote. They will not be cleaned unless added to the
+        scope and priced separately.
       </p>
-      <QuoteTable columns={SECTION_BY_KEY.exclusions.columns!} rows={parseTable(sec.exclusions)} />
+      <QuoteTable
+        columns={SECTION_BY_KEY.exclusions.columns!}
+        rows={parseTable(sec.exclusions)}
+        leftPct={fields.layout.exclusions_col_pct}
+      />
       <Paragraphs text={sec.exclusion_notes} />
 
       <H3>5. Project Conditions</H3>
       <Paragraphs text={sec.conditions} />
 
       <H3>6. Proposal Acceptance</H3>
-      <p>By signing below, the Client accepts the scope, pricing, limitations, and exclusions described in this proposal.</p>
+      <p>
+        By signing below, the Client accepts the scope, pricing, limitations, and exclusions described in this proposal.
+      </p>
       <p className="font-semibold">Total Project Price: {total}</p>
       <div className="grid grid-cols-2 gap-6 text-xs">
         <Signature name="PRIME CLEAN CARE" />

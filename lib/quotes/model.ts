@@ -148,12 +148,23 @@ export type QuoteClient = {
   extra_emails: string[];
 };
 
+/** Width of each table's left column, as a percentage of the table. */
+export type QuoteLayout = {
+  quote_col_pct: number;
+  scope_col_pct: number;
+  exclusions_col_pct: number;
+};
+
+export const DEFAULT_LAYOUT: QuoteLayout = { quote_col_pct: 75, scope_col_pct: 35, exclusions_col_pct: 70 };
+export const COLUMN_WIDTH_CHOICES = [25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75] as const;
+
 export type QuoteFields = {
   title: string;
   tagline: string;
   quote_date: string; // YYYY-MM-DD
   client: QuoteClient;
   sections: Record<SectionKey, string>;
+  layout: QuoteLayout;
 };
 
 export const DEFAULT_TITLE = "A CUSTOMIZED CLEANING QUOTE";
@@ -166,14 +177,21 @@ export function emptyFields(client: QuoteClient, quoteDate: string): QuoteFields
     quote_date: quoteDate,
     client,
     sections: Object.fromEntries(SECTIONS.map((s) => [s.key, ""])) as Record<SectionKey, string>,
+    layout: { ...DEFAULT_LAYOUT },
   };
+}
+
+function clampPct(v: unknown, fallback: number): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) && n >= 20 && n <= 80 ? Math.round(n) : fallback;
 }
 
 /** Coerce whatever is stored in proposal_versions.fields into QuoteFields. */
 export function toQuoteFields(raw: unknown): QuoteFields {
-  const r = (raw ?? {}) as Partial<QuoteFields> & {
+  const r = (raw ?? {}) as Partial<Omit<QuoteFields, "layout">> & {
     client?: Partial<QuoteClient>;
     sections?: Partial<Record<SectionKey, string>>;
+    layout?: Partial<Record<keyof QuoteLayout, unknown>>;
   };
   const client: QuoteClient = {
     name: r.client?.name ?? "",
@@ -190,6 +208,11 @@ export function toQuoteFields(raw: unknown): QuoteFields {
     title: r.title ?? DEFAULT_TITLE,
     tagline: r.tagline ?? DEFAULT_TAGLINE,
     quote_date: r.quote_date ?? "",
+    layout: {
+      quote_col_pct: clampPct(r.layout?.quote_col_pct, DEFAULT_LAYOUT.quote_col_pct),
+      scope_col_pct: clampPct(r.layout?.scope_col_pct, DEFAULT_LAYOUT.scope_col_pct),
+      exclusions_col_pct: clampPct(r.layout?.exclusions_col_pct, DEFAULT_LAYOUT.exclusions_col_pct),
+    },
     client,
     sections: Object.fromEntries(SECTIONS.map((s) => [s.key, r.sections?.[s.key] ?? ""])) as Record<SectionKey, string>,
   };
@@ -242,6 +265,7 @@ export function describeChanges(before: QuoteFields | null, after: QuoteFields):
   if (before.title !== after.title) changed.push("title");
   if (before.tagline !== after.tagline) changed.push("tagline");
   if (before.quote_date !== after.quote_date) changed.push("quote date");
+  if (JSON.stringify(before.layout) !== JSON.stringify(after.layout)) changed.push("column widths");
   if (JSON.stringify(before.client) !== JSON.stringify(after.client)) changed.push("client details");
   for (const s of SECTIONS) {
     if ((before.sections[s.key] ?? "") !== (after.sections[s.key] ?? "")) changed.push(s.title);

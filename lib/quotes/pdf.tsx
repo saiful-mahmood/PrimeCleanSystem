@@ -67,8 +67,8 @@ const s = StyleSheet.create({
   th: { color: "#ffffff", fontSize: 8.5, paddingVertical: 5, paddingHorizontal: 7 },
   tr: { flexDirection: "row", borderTopWidth: 1, borderTopColor: BORDER },
   td: { fontSize: 9, paddingVertical: 5, paddingHorizontal: 7, lineHeight: 1.35 },
-  wide: { flex: 3, borderRightWidth: 1, borderRightColor: BORDER },
-  narrow: { flex: 1 },
+  wide: { borderRightWidth: 1, borderRightColor: BORDER },
+  narrow: {},
   totalBox: { marginTop: 14, marginBottom: 10, flexDirection: "row", borderWidth: 1, borderColor: NAVY },
   totalLabel: {
     flex: 1,
@@ -108,18 +108,28 @@ function Chrome({ label }: { label: string }) {
   );
 }
 
-function Table({ columns, rows }: { columns: [string, string]; rows: { cells: [string, string] }[] }) {
+function Table({
+  columns,
+  rows,
+  leftPct,
+}: {
+  columns: [string, string];
+  rows: { cells: [string, string] }[];
+  leftPct: number;
+}) {
   if (rows.length === 0) return null;
+  const left = { width: `${leftPct}%` };
+  const right = { width: `${100 - leftPct}%` };
   return (
     <View style={s.table}>
       <View style={s.trHead}>
-        <Text style={[s.th, s.wide]}>{columns[0]}</Text>
-        <Text style={[s.th, s.narrow]}>{columns[1]}</Text>
+        <Text style={[s.th, s.wide, left]}>{columns[0]}</Text>
+        <Text style={[s.th, s.narrow, right]}>{columns[1]}</Text>
       </View>
       {rows.map((r, i) => (
         <View key={i} style={s.tr} wrap={false}>
-          <Text style={[s.td, s.wide]}>{r.cells[0]}</Text>
-          <Text style={[s.td, s.narrow]}>{r.cells[1]}</Text>
+          <Text style={[s.td, s.wide, left]}>{r.cells[0]}</Text>
+          <Text style={[s.td, s.narrow, right]}>{r.cells[1]}</Text>
         </View>
       ))}
     </View>
@@ -183,7 +193,11 @@ export function QuoteDocument({
         <Paragraphs text={sec.scope_summary} />
 
         <Text style={s.h2}>2. Quote Summary</Text>
-        <Table columns={defs.quote_lines.columns!} rows={[...quoteRows, { cells: ["TOTAL PROJECT QUOTE", total] }]} />
+        <Table
+          columns={defs.quote_lines.columns!}
+          rows={[...quoteRows, { cells: ["TOTAL PROJECT QUOTE", total] }]}
+          leftPct={fields.layout.quote_col_pct}
+        />
         <View style={s.totalBox} wrap={false}>
           <Text style={s.totalLabel}>TOTAL PROJECT QUOTE</Text>
           <Text style={s.totalValue}>{total}</Text>
@@ -203,7 +217,11 @@ export function QuoteDocument({
           The following descriptions define exactly what will be cleaned. Work is limited to the listed surfaces and
           areas.
         </Text>
-        <Table columns={defs.scope_details.columns!} rows={parseTable(sec.scope_details)} />
+        <Table
+          columns={defs.scope_details.columns!}
+          rows={parseTable(sec.scope_details)}
+          leftPct={fields.layout.scope_col_pct}
+        />
         <Paragraphs text={sec.process_notes} />
 
         <Text style={s.h2} break>
@@ -213,7 +231,11 @@ export function QuoteDocument({
           The following items are specifically excluded from this quote. They will not be cleaned unless added to the
           scope and priced separately.
         </Text>
-        <Table columns={defs.exclusions.columns!} rows={parseTable(sec.exclusions)} />
+        <Table
+          columns={defs.exclusions.columns!}
+          rows={parseTable(sec.exclusions)}
+          leftPct={fields.layout.exclusions_col_pct}
+        />
         <Paragraphs text={sec.exclusion_notes} />
 
         <Text style={s.h2} break>

@@ -8,8 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import type { FormState } from "@/lib/forms";
-import { SECTIONS, formatQuoteMoney, quoteTotalCents, type QuoteFields, type SectionKey } from "@/lib/quotes/model";
-import { draftSectionAction, saveHeader, saveSection } from "@/app/(owner)/quotes/actions";
+import {
+  COLUMN_WIDTH_CHOICES,
+  SECTIONS,
+  formatQuoteMoney,
+  quoteTotalCents,
+  type QuoteFields,
+  type QuoteLayout,
+  type SectionKey,
+} from "@/lib/quotes/model";
+import { draftSectionAction, saveHeader, saveLayout, saveSection } from "@/app/(owner)/quotes/actions";
 import { QuotePreview } from "./quote-preview";
 import { cn } from "@/lib/utils";
 
@@ -100,6 +108,18 @@ export function QuoteEditor({
                 rows={s.kind === "table" ? 6 : 5}
                 className={cn("text-sm", s.kind === "table" && "font-mono text-xs")}
               />
+              {s.kind === "table" && (
+                <ColumnWidth
+                  proposalId={proposalId}
+                  layoutKey={LAYOUT_KEY[s.key] ?? "scope_col_pct"}
+                  value={saved.layout[LAYOUT_KEY[s.key] ?? "scope_col_pct"]}
+                  leftLabel={s.columns?.[0] ?? "Left column"}
+                  onSaved={(msg) => {
+                    setNotice(msg);
+                    router.refresh();
+                  }}
+                />
+              )}
               <details className="rounded-md border p-3">
                 <summary className="cursor-pointer text-sm font-medium">
                   <Sparkles className="mr-1 inline size-3.5" />
@@ -225,5 +245,52 @@ function HeaderForm({ proposalId, saved }: { proposalId: string; saved: QuoteFie
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+const LAYOUT_KEY: Partial<Record<SectionKey, keyof QuoteLayout>> = {
+  quote_lines: "quote_col_pct",
+  scope_details: "scope_col_pct",
+  exclusions: "exclusions_col_pct",
+};
+
+/** Left-column width for a table section; each change is saved as a new version. */
+function ColumnWidth({
+  proposalId,
+  layoutKey,
+  value,
+  leftLabel,
+  onSaved,
+}: {
+  proposalId: string;
+  layoutKey: keyof QuoteLayout;
+  value: number;
+  leftLabel: string;
+  onSaved: (message: string) => void;
+}) {
+  const [pending, start] = useTransition();
+  return (
+    <label className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+      <span>&ldquo;{leftLabel}&rdquo; column width</span>
+      <select
+        value={value}
+        disabled={pending}
+        onChange={(e) => {
+          const pct = Number(e.target.value);
+          start(async () => {
+            const r = await saveLayout(proposalId, layoutKey, pct);
+            onSaved(r.summary === "No changes" ? "Nothing changed." : `Saved as v${r.versionNo}: ${r.summary}`);
+          });
+        }}
+        className="h-7 rounded-md border border-input bg-transparent px-2 text-xs text-foreground"
+      >
+        {COLUMN_WIDTH_CHOICES.map((p) => (
+          <option key={p} value={p}>
+            {p}% / {100 - p}%
+          </option>
+        ))}
+      </select>
+      <span>(applies to the preview and the PDF)</span>
+    </label>
   );
 }

@@ -17,6 +17,7 @@ import {
 import { localDate } from "@/lib/tz";
 import { aiConfigured, draftSection } from "@/lib/quotes/ai";
 import {
+  COLUMN_WIDTH_CHOICES,
   SECTIONS,
   describeChanges,
   emptyFields,
@@ -24,6 +25,7 @@ import {
   toQuoteFields,
   type QuoteClient,
   type QuoteFields,
+  type QuoteLayout,
   type SectionKey,
 } from "@/lib/quotes/model";
 import type { Database, Json } from "@/lib/database.types";
@@ -290,4 +292,14 @@ export async function setQuoteStatus(proposalId: string, status: "draft" | "sent
   });
   revalidatePath(`/quotes/${proposalId}`);
   revalidatePath("/quotes");
+}
+
+/** Column width for one of the tables; saved as a new version like any other change. */
+export async function saveLayout(proposalId: string, key: keyof QuoteLayout, pct: number) {
+  await requireOwner();
+  if (!(COLUMN_WIDTH_CHOICES as readonly number[]).includes(pct)) throw new Error("Pick a width from the list.");
+  const supabase = await createClient();
+  const { fields } = await latest(supabase, proposalId);
+  if (!fields) throw new Error("Quote not found.");
+  return saveVersion(proposalId, { layout: { ...fields.layout, [key]: pct } });
 }
