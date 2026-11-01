@@ -16,7 +16,8 @@
     "db:check": "node scripts/check-db.mjs",
     "dev:login": "node scripts/dev-login-link.mjs",
     "test:db": "vitest run --config vitest.db.config.mts",
-    "db:rollback-import": "node scripts/rollback-import.mjs"
+    "db:rollback-import": "node scripts/rollback-import.mjs",
+    "db:reset-data": "node scripts/reset-data.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",

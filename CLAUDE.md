@@ -69,6 +69,7 @@ pnpm test:e2e       # playwright
 pnpm db:push        # supabase db push to the hosted project (migrations in supabase/migrations)
 pnpm db:check       # query every table and view on the hosted project; run after each migration
 pnpm db:rollback-import   # undo the last sheet import (ids from audit_log); --partial cleans a failed one
+pnpm db:reset-data        # wipe all business data (keeps login, settings, service types); --yes to run, --keep-quotes to spare quotes
 ```
 
 There is no local Supabase (the owner has no Docker). Development and tests run against the
