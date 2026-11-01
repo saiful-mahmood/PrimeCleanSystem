@@ -54,6 +54,8 @@ for (const t of tables) {
     d = d.not(t === "clients" ? "id" : "client_id", "in", `(${quoteClientIds.join(",")})`);
   } else if (t === "audit_log") {
     d = d.gt("id", 0);
+  } else if (t === "invoice_jobs") {
+    d = d.not("invoice_id", "is", null); // composite key, no id column
   } else {
     d = d.not("id", "is", null);
   }
