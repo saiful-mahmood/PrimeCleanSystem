@@ -115,7 +115,7 @@ export function CalendarView({
               onDragLeave={() => setDragOver((d) => (d === day ? null : d))}
               onDrop={(e) => onDrop(e, day)}
               className={cn(
-                "flex flex-col bg-background p-1",
+                "flex min-w-0 flex-col overflow-hidden bg-background p-1",
                 view === "week" ? "min-h-64" : "min-h-24",
                 !inMonth && "bg-muted/40 text-muted-foreground",
                 dragOver === day && "ring-2 ring-primary ring-inset",
@@ -163,13 +163,15 @@ function JobChip({ job, compact, onSelect }: { job: CalendarJob; compact: boolea
       }}
       onClick={onSelect}
       className={cn(
-        "w-full rounded border px-1.5 py-1 text-left text-xs leading-tight",
+        "w-full min-w-0 overflow-hidden rounded border px-1.5 py-1 text-left text-xs leading-tight",
         unpaidDone ? UNPAID_DONE_COLOR : meta.color,
         movable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       )}
       title={`${job.clientName} · ${job.serviceName}${who ? ` · ${who}` : ""}`}
     >
-      <span className="font-medium">{time12(job.localTime)}</span> <span className="truncate">{job.clientName}</span>
+      <span className="block truncate">
+        <span className="font-medium">{time12(job.localTime)}</span> {job.clientName}
+      </span>
       {!compact && (
         <div className="mt-0.5 truncate opacity-80">
           {job.serviceName}
