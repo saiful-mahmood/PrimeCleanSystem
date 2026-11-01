@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { Document, Image as PdfImage, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { formatCents } from "@/lib/money";
-import { hoursLabel, timeRange, type MonthlySchedule } from "./build";
+import { hoursLabel, monthGrid, shortTime, timeRange, type MonthlySchedule } from "./build";
 
 const NAVY = "#1b2f4d";
 const MUTED = "#4b5563";
@@ -35,7 +35,49 @@ const s = StyleSheet.create({
   pay: { width: 60, textAlign: "right", lineHeight: 1.3 },
   small: { fontSize: 8.5, color: MUTED, lineHeight: 1.3 },
   off: { color: "#9ca3af", textDecoration: "line-through" },
+  // month grid
+  gridHead: { flexDirection: "row", marginTop: 12 },
+  gridHeadCell: {
+    width: "14.2857%",
+    paddingVertical: 3,
+    textAlign: "center",
+    fontSize: 8,
+    fontFamily: "Helvetica-Bold",
+    color: "#ffffff",
+    backgroundColor: NAVY,
+  },
+  gridRow: { flexDirection: "row" },
+  gridCell: { width: "14.2857%", minHeight: 78, borderWidth: 0.5, borderColor: BORDER, padding: 3 },
+  gridCellOut: { backgroundColor: "#f3f4f6" },
+  gridDay: { fontSize: 7.5, color: MUTED, marginBottom: 2 },
+  gridVisit: {
+    fontSize: 7,
+    lineHeight: 1.25,
+    marginBottom: 2,
+    padding: 2,
+    backgroundColor: "#e8f1fb",
+    borderRadius: 2,
+  },
+  gridVisitOff: { backgroundColor: "#f3f4f6", color: "#9ca3af", textDecoration: "line-through" },
 });
+
+function Chrome({ schedule }: { schedule: MonthlySchedule }) {
+  return (
+    <>
+      <View style={s.header} fixed>
+        <PdfImage style={s.logo} src={{ data: logo(), format: "png" }} />
+        <View style={s.rule} />
+      </View>
+      <Text style={s.footerL} fixed>
+        PRIME CLEAN CARE
+      </Text>
+      <Text style={s.footerC} render={({ pageNumber }) => `${pageNumber}`} fixed />
+      <Text style={s.footerR} fixed>
+        {schedule.providerName} · {schedule.monthLabel}
+      </Text>
+    </>
+  );
+}
 
 let logoCache: Buffer | null = null;
 function logo(): Buffer {
@@ -47,17 +89,42 @@ export function ScheduleDocument({ schedule, includePay }: { schedule: MonthlySc
   return (
     <Document title={`${schedule.providerName} schedule ${schedule.monthLabel}`} author="Prime Clean Care">
       <Page size="LETTER" style={s.page}>
-        <View style={s.header} fixed>
-          <PdfImage style={s.logo} src={{ data: logo(), format: "png" }} />
-          <View style={s.rule} />
+        <Chrome schedule={schedule} />
+        <Text style={s.title}>
+          {schedule.providerName} — {schedule.monthLabel}
+        </Text>
+        <Text style={s.sub}>
+          {schedule.visitCount} visit{schedule.visitCount === 1 ? "" : "s"} · {hoursLabel(schedule.totalMinutes)}
+          {includePay ? ` · ${formatCents(schedule.totalPayCents)}` : ""}
+        </Text>
+        <View style={s.gridHead}>
+          {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+            <Text key={d} style={s.gridHeadCell}>
+              {d}
+            </Text>
+          ))}
         </View>
-        <Text style={s.footerL} fixed>
-          PRIME CLEAN CARE
-        </Text>
-        <Text style={s.footerC} render={({ pageNumber }) => `${pageNumber}`} fixed />
-        <Text style={s.footerR} fixed>
-          {schedule.providerName} · {schedule.monthLabel}
-        </Text>
+        {monthGrid(schedule).map((week, i) => (
+          <View key={i} style={s.gridRow} wrap={false}>
+            {week.map((cell) => (
+              <View key={cell.date} style={[s.gridCell, ...(cell.inMonth ? [] : [s.gridCellOut])]}>
+                <Text style={s.gridDay}>{cell.dayOfMonth}</Text>
+                {cell.visits.map((v) => {
+                  const off = v.status === "cancelled" || v.status === "skipped";
+                  return (
+                    <Text key={v.jobId} style={[s.gridVisit, ...(off ? [s.gridVisitOff] : [])]}>
+                      {shortTime(v.scheduledStart)} {v.clientName}
+                    </Text>
+                  );
+                })}
+              </View>
+            ))}
+          </View>
+        ))}
+      </Page>
+
+      <Page size="LETTER" style={s.page}>
+        <Chrome schedule={schedule} />
 
         <Text style={s.title}>
           {schedule.providerName} — {schedule.monthLabel}

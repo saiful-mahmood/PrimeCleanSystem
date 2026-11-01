@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { buildMonthlySchedule, hoursLabel, monthBounds, scheduleAsText, type ScheduleVisit } from "./build";
+import {
+  buildMonthlySchedule,
+  hoursLabel,
+  monthBounds,
+  monthGrid,
+  scheduleAsText,
+  shortTime,
+  type ScheduleVisit,
+} from "./build";
 
 const visit = (over: Partial<ScheduleVisit>): ScheduleVisit => ({
   jobId: "j",
@@ -68,5 +76,32 @@ describe("scheduleAsText", () => {
   it("hours label", () => {
     expect(hoursLabel(90)).toBe("1h 30m");
     expect(hoursLabel(120)).toBe("2h");
+  });
+});
+
+describe("monthGrid", () => {
+  it("covers the month in Monday-first weeks and places visits on their day", () => {
+    const s = buildMonthlySchedule("L", "2026-11", [
+      visit({}),
+      visit({ jobId: "b", scheduledStart: "2026-11-30T14:00:00.000Z" }),
+    ]);
+    const weeks = monthGrid(s);
+    // November 2026 starts on a Sunday and ends on a Monday → 6 rows of 7.
+    expect(weeks.length).toBe(6);
+    expect(weeks.every((w) => w.length === 7)).toBe(true);
+    expect(weeks[0][0].date).toBe("2026-10-26");
+    expect(weeks[0][0].inMonth).toBe(false);
+    expect(weeks[0][6].date).toBe("2026-11-01");
+    expect(weeks[0][6].inMonth).toBe(true);
+    const nov3 = weeks[1][1];
+    expect(nov3.date).toBe("2026-11-03");
+    expect(nov3.visits.map((v) => v.jobId)).toEqual(["j"]);
+    expect(weeks[5][0].date).toBe("2026-11-30");
+    expect(weeks[5][0].visits.map((v) => v.jobId)).toEqual(["b"]);
+    expect(weeks[5][6].date).toBe("2026-12-06");
+  });
+  it("shortTime", () => {
+    expect(shortTime("2026-11-03T14:00:00.000Z")).toBe("9am");
+    expect(shortTime("2026-11-03T19:30:00.000Z")).toBe("2:30pm");
   });
 });

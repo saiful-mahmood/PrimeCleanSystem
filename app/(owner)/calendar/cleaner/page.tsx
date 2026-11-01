@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { createClient } from "@/lib/supabase/server";
 import { formatCents } from "@/lib/money";
-import { hoursLabel, monthBounds, scheduleAsText, timeRange } from "@/lib/schedules/build";
+import { hoursLabel, monthBounds, monthGrid, scheduleAsText, shortTime, timeRange } from "@/lib/schedules/build";
 import { loadMonthlySchedule } from "@/lib/schedules/load";
 import { localDate } from "@/lib/tz";
 import { cn } from "@/lib/utils";
@@ -120,6 +120,49 @@ export default async function CleanerSchedulePage({ searchParams }: PageProps<"/
             </Button>
             <CopyTextButton text={text} />
           </div>
+
+          <Card className="mb-4">
+            <CardHeader>
+              <CardTitle>{schedule.monthLabel} at a glance</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-7 gap-px overflow-hidden rounded-md border bg-border text-xs">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
+                  <div key={d} className="bg-muted px-1 py-1 text-center font-medium text-muted-foreground">
+                    {d}
+                  </div>
+                ))}
+                {monthGrid(schedule)
+                  .flat()
+                  .map((cell) => (
+                    <div
+                      key={cell.date}
+                      className={cn("min-h-16 bg-background p-1", !cell.inMonth && "bg-muted/40 text-muted-foreground")}
+                    >
+                      <div className="mb-0.5 text-[10px] text-muted-foreground">{cell.dayOfMonth}</div>
+                      {cell.visits.map((v) => {
+                        const off = v.status === "cancelled" || v.status === "skipped";
+                        return (
+                          <Link
+                            key={v.jobId}
+                            href={`/jobs/${v.jobId}`}
+                            className={cn(
+                              "block truncate rounded border px-1 py-0.5 leading-tight",
+                              off
+                                ? "border-neutral-200 text-muted-foreground line-through"
+                                : "border-sky-200 bg-sky-50 text-sky-900",
+                            )}
+                            title={`${timeRange(v)} · ${v.clientName}`}
+                          >
+                            {shortTime(v.scheduledStart)} {v.clientName}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  ))}
+              </div>
+            </CardContent>
+          </Card>
 
           <Card>
             <CardHeader>

@@ -112,3 +112,37 @@ export function scheduleAsText(s: MonthlySchedule, opts: { includePay?: boolean 
   if (s.days.length === 0) lines.push("No visits this month.");
   return lines.join("\n").trimEnd() + "\n";
 }
+
+export type GridCell = { date: string; dayOfMonth: number; inMonth: boolean; visits: ScheduleVisit[] };
+
+/** Weeks (Monday-first) covering the month, each cell with that day's visits. */
+export function monthGrid(s: MonthlySchedule): GridCell[][] {
+  const { start, end } = monthBounds(s.month);
+  const byDate = new Map(s.days.map((d) => [d.date, d.visits]));
+  const first = parseISO(start);
+  const gridStart = new Date(first);
+  gridStart.setDate(first.getDate() - ((first.getDay() + 6) % 7)); // back to Monday
+  const weeks: GridCell[][] = [];
+  const cursor = new Date(gridStart);
+  const endDate = parseISO(end); // exclusive
+  while (cursor < endDate || weeks.length === 0 || weeks[weeks.length - 1].length < 7) {
+    const date = format(cursor, "yyyy-MM-dd");
+    const cell: GridCell = {
+      date,
+      dayOfMonth: cursor.getDate(),
+      inMonth: date >= start && date < end,
+      visits: byDate.get(date) ?? [],
+    };
+    if (weeks.length === 0 || weeks[weeks.length - 1].length === 7) weeks.push([]);
+    weeks[weeks.length - 1].push(cell);
+    cursor.setDate(cursor.getDate() + 1);
+    if (cursor >= endDate && weeks[weeks.length - 1].length === 7) break;
+  }
+  return weeks;
+}
+
+/** "9am" / "2:30pm", for tight calendar cells. */
+export function shortTime(iso: string): string {
+  const t = formatInTimeZone(new Date(iso), BUSINESS_TZ, "h:mma").toLowerCase();
+  return t.replace(":00", "");
+}
