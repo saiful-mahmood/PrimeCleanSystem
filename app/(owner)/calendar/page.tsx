@@ -141,6 +141,12 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
               {v}
             </Link>
           ))}
+          <Link
+            href={`/calendar/cleaner?month=${date.slice(0, 7)}`}
+            className="rounded px-3 py-1 text-muted-foreground"
+          >
+            Cleaner schedule
+          </Link>
         </div>
         <form className="ml-auto flex flex-wrap gap-2" action="/calendar">
           <input type="hidden" name="view" value={view} />
