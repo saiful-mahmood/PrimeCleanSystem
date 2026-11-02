@@ -31,6 +31,7 @@ export function PayoutBuilder({
   const [selected, setSelected] = useState<Set<string>>(() => new Set(items.map((i) => i.id)));
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
+  const owed = items.reduce((s, i) => s + i.payCents, 0);
   const total = items.filter((i) => selected.has(i.id)).reduce((s, i) => s + i.payCents, 0);
   const all = selected.size === items.length;
 
@@ -41,10 +42,12 @@ export function PayoutBuilder({
           <Link href={`/providers/${providerId}`} className="hover:underline">
             {providerName}
           </Link>
-          <span className="tabular-nums">{formatCents(items.reduce((s, i) => s + i.payCents, 0))}</span>
+          <span className="tabular-nums">{formatCents(total)}</span>
         </CardTitle>
         <CardDescription>
-          {items.length} unpaid job{items.length === 1 ? "" : "s"}
+          {all
+            ? `${items.length} unpaid job${items.length === 1 ? "" : "s"}`
+            : `${selected.size} of ${items.length} unpaid jobs selected · ${formatCents(owed)} owed in total`}
           {zelleHandle ? ` · Zelle ${zelleHandle}` : " · no Zelle handle on file"}
         </CardDescription>
       </CardHeader>
@@ -88,7 +91,7 @@ export function PayoutBuilder({
         </ul>
         <div className="flex items-center justify-between border-t pt-3">
           <span className="text-sm">
-            Selected: <span className="font-semibold tabular-nums">{formatCents(total)}</span>
+            {selected.size} selected: <span className="font-semibold tabular-nums">{formatCents(total)}</span>
           </span>
           <Button
             disabled={pending || selected.size === 0}
@@ -100,7 +103,7 @@ export function PayoutBuilder({
               })
             }
           >
-            {pending ? "Creating…" : "Create payout"}
+            {pending ? "Creating…" : `Create payout · ${formatCents(total)}`}
           </Button>
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
