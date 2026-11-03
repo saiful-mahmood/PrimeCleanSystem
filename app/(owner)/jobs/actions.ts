@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formValues, fromZod, type FormState } from "@/lib/forms";
 import { assignSchema, cancelSchema, jobEditSchema, jobSchema, paymentSchema } from "@/lib/scheduling/shared";
 import { localDate, localTime, localToInstant } from "@/lib/tz";
+import { parseDollars } from "@/lib/money";
 import type { Json } from "@/lib/database.types";
 
 function revalidateJob(jobId?: string) {
@@ -506,4 +507,97 @@ export async function updateAssignmentPay(
   revalidateJob(jobId);
   revalidatePath("/pay");
   return {};
+}
+
+/**
+ * Set the client price and/or cleaner pay on several visits at once (from
+ * the Jobs list). A blank field leaves that amount alone. Cleaner pay is
+ * applied to every assignment that is not yet in a payout; paid ones are
+ * frozen (rule 4) and reported as skipped.
+ */
+export async function updateBulkPricing(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requireOwner();
+  const jobIds = formData.getAll("job_ids").filter((v): v is string => typeof v === "string" && v.length > 0);
+  if (jobIds.length === 0) return { error: "Select at least one visit." };
+  const chargeRaw = String(formData.get("charge") ?? "").trim();
+  const payRaw = String(formData.get("pay") ?? "").trim();
+  const chargeCents = chargeRaw ? parseDollars(chargeRaw) : null;
+  const payCents = payRaw ? parseDollars(payRaw) : null;
+  const fieldErrors: Record<string, string> = {};
+  if (chargeRaw && (chargeCents === null || chargeCents < 0)) fieldErrors.charge = "Enter a dollar amount.";
+  if (payRaw && (payCents === null || payCents < 0)) fieldErrors.pay = "Enter a dollar amount.";
+  if (Object.keys(fieldErrors).length) return { fieldErrors };
+  if (chargeCents === null && payCents === null) return { error: "Enter a client price, a cleaner pay, or both." };
+
+  const supabase = await createClient();
+  const { data: jobs } = await supabase.from("jobs").select("id, charge_cents, status").in("id", jobIds);
+  const live = (jobs ?? []).filter((j) => j.status !== "cancelled" && j.status !== "skipped");
+  if (live.length === 0) return { error: "None of the selected visits can be priced (all cancelled or skipped)." };
+  const liveIds = live.map((j) => j.id);
+
+  let pricesChanged = 0;
+  if (chargeCents !== null) {
+    const toChange = live.filter((j) => j.charge_cents !== chargeCents);
+    if (toChange.length) {
+      const { error } = await supabase
+        .from("jobs")
+        .update({ charge_cents: chargeCents })
+        .in(
+          "id",
+          toChange.map((j) => j.id),
+        );
+      if (error) return { error: error.message };
+      await supabase.from("audit_log").insert(
+        toChange.map((j) => ({
+          actor: "owner",
+          action: "job.price_changed",
+          entity: "job",
+          entity_id: j.id,
+          meta: { from_cents: j.charge_cents, to_cents: chargeCents, bulk: toChange.length },
+        })),
+      );
+      pricesChanged = toChange.length;
+    }
+  }
+
+  let paysChanged = 0;
+  let paysFrozen = 0;
+  if (payCents !== null) {
+    const { data: assignments } = await supabase
+      .from("job_assignments")
+      .select("id, job_id, provider_id, pay_cents, payout_id")
+      .in("job_id", liveIds);
+    const frozen = (assignments ?? []).filter((a) => a.payout_id);
+    const toChange = (assignments ?? []).filter((a) => !a.payout_id && a.pay_cents !== payCents);
+    paysFrozen = frozen.length;
+    if (toChange.length) {
+      const { error } = await supabase
+        .from("job_assignments")
+        .update({ pay_cents: payCents })
+        .in(
+          "id",
+          toChange.map((a) => a.id),
+        );
+      if (error) return { error: error.message };
+      await supabase.from("audit_log").insert(
+        toChange.map((a) => ({
+          actor: "owner",
+          action: "job.pay_changed",
+          entity: "job",
+          entity_id: a.job_id,
+          meta: { provider_id: a.provider_id, from_cents: a.pay_cents, to_cents: payCents, bulk: toChange.length },
+        })),
+      );
+      paysChanged = toChange.length;
+    }
+  }
+
+  revalidateJob();
+  revalidatePath("/pay");
+  for (const id of liveIds) revalidatePath(`/jobs/${id}`);
+  const parts: string[] = [];
+  if (chargeCents !== null) parts.push(`client price set on ${pricesChanged} visit${pricesChanged === 1 ? "" : "s"}`);
+  if (payCents !== null) parts.push(`cleaner pay set on ${paysChanged} assignment${paysChanged === 1 ? "" : "s"}`);
+  if (paysFrozen) parts.push(`${paysFrozen} already paid to the cleaner and left unchanged`);
+  return { message: parts.join(", ").replace(/^./, (c) => c.toUpperCase()) + "." };
 }

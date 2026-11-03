@@ -7,7 +7,7 @@ import { FormActions, SelectField, TextField } from "@/components/forms/fields";
 import { StatusBadge } from "@/components/scheduling/status-badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { recordBulkPayment } from "@/app/(owner)/jobs/actions";
+import { recordBulkPayment, updateBulkPricing } from "@/app/(owner)/jobs/actions";
 import type { FormState } from "@/lib/forms";
 import { formatCents } from "@/lib/money";
 import type { JobStatus } from "@/lib/scheduling/shared";
@@ -44,23 +44,37 @@ const PAYMENT_METHODS = [
 export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [formOpen, setFormOpen] = useState(false);
+  const [formOpen, setFormOpen] = useState<"payment" | "pricing" | null>(null);
 
-  const payable = useMemo(() => rows.filter((r) => r.status === "done" && r.receivedCents < r.chargeCents), [rows]);
-  const selectedRows = payable.filter((r) => selected.has(r.id));
+  const live = useMemo(() => rows.filter((r) => r.status !== "cancelled" && r.status !== "skipped"), [rows]);
+  const payable = useMemo(() => live.filter((r) => r.status === "done" && r.receivedCents < r.chargeCents), [live]);
+  const chosen = live.filter((r) => selected.has(r.id));
+  const selectedRows = chosen.filter((r) => r.status === "done" && r.receivedCents < r.chargeCents);
   const selectedTotal = selectedRows.reduce((s, r) => s + (r.chargeCents - r.receivedCents), 0);
-  const allSelected = payable.length > 0 && selectedRows.length === payable.length;
+  const allSelected = live.length > 0 && chosen.length === live.length;
+  const allPayableSelected = payable.length > 0 && payable.every((r) => selected.has(r.id));
 
   const [state, action, pending] = useActionState<FormState, FormData>(async (prev, fd) => {
     const r = await recordBulkPayment(prev, fd);
     if (r.message) {
       setSelected(new Set());
-      setFormOpen(false);
+      setFormOpen(null);
       router.refresh();
     }
     return r;
   }, {});
   const e = state.fieldErrors ?? {};
+  const [priceState, priceAction, pricePending] = useActionState<FormState, FormData>(async (prev, fd) => {
+    const r = await updateBulkPricing(prev, fd);
+    if (r.message) {
+      setSelected(new Set());
+      setFormOpen(null);
+      router.refresh();
+    }
+    return r;
+  }, {});
+  const pe = priceState.fieldErrors ?? {};
+  const message = state.message ?? priceState.message;
 
   const counted = rows.filter((r) => r.status !== "cancelled" && r.status !== "skipped");
   const totals = counted.reduce(
@@ -83,39 +97,112 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
 
   return (
     <div className="space-y-3">
-      {state.message && (
+      {message && (
         <p className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-          {state.message}
+          {message}
         </p>
       )}
 
-      {payable.length > 0 && (
-        <div className="flex flex-wrap items-center gap-3 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+      {live.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
           <label className="inline-flex items-center gap-2">
             <input
               type="checkbox"
               checked={allSelected}
-              onChange={(ev) => setSelected(ev.target.checked ? new Set(payable.map((r) => r.id)) : new Set())}
+              onChange={(ev) => setSelected(ev.target.checked ? new Set(live.map((r) => r.id)) : new Set())}
               className="accent-primary"
             />
-            Select all where the client still owes ({payable.length})
+            Select all ({live.length})
           </label>
+          {payable.length > 0 && (
+            <label className="inline-flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={allPayableSelected}
+                onChange={(ev) =>
+                  setSelected((prev) => {
+                    const next = new Set(prev);
+                    for (const r of payable)
+                      if (ev.target.checked) next.add(r.id);
+                      else next.delete(r.id);
+                    return next;
+                  })
+                }
+                className="accent-primary"
+              />
+              Where the client still owes ({payable.length})
+            </label>
+          )}
           <span className="text-muted-foreground">
-            {selectedRows.length} selected ·{" "}
-            <span className="font-medium text-foreground tabular-nums">{formatCents(selectedTotal)}</span>
+            {chosen.length} selected
+            {selectedRows.length > 0 && (
+              <>
+                {" "}
+                · <span className="font-medium text-foreground tabular-nums">{formatCents(selectedTotal)}</span> owed
+              </>
+            )}
           </span>
-          <Button
-            size="sm"
-            className="ml-auto"
-            disabled={selectedRows.length === 0}
-            onClick={() => setFormOpen((o) => !o)}
-          >
-            Record client payment for selected
-          </Button>
+          <span className="ml-auto flex flex-wrap gap-2">
+            <Button
+              size="sm"
+              variant={formOpen === "pricing" ? "secondary" : "outline"}
+              disabled={chosen.length === 0}
+              onClick={() => setFormOpen((o) => (o === "pricing" ? null : "pricing"))}
+            >
+              Update pricing
+            </Button>
+            <Button
+              size="sm"
+              variant={formOpen === "payment" ? "secondary" : "default"}
+              disabled={selectedRows.length === 0}
+              onClick={() => setFormOpen((o) => (o === "payment" ? null : "payment"))}
+            >
+              Record client payment
+            </Button>
+          </span>
         </div>
       )}
 
-      {formOpen && selectedRows.length > 0 && (
+      {formOpen === "pricing" && chosen.length > 0 && (
+        <form action={priceAction} className="space-y-3 rounded-md border p-3">
+          {chosen.map((r) => (
+            <input key={r.id} type="hidden" name="job_ids" value={r.id} />
+          ))}
+          <p className="text-sm">
+            Setting new amounts on {chosen.length} visit{chosen.length === 1 ? "" : "s"} for{" "}
+            {[...new Set(chosen.map((r) => r.clientName))].join(", ")}. Leave a field blank to keep that amount as it
+            is. Cleaner pay already included in a payout stays frozen.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <TextField
+              label="Client price per visit ($)"
+              name="charge"
+              inputMode="decimal"
+              placeholder="keep current"
+              error={pe.charge}
+              autoComplete="off"
+            />
+            <TextField
+              label="Cleaner pay per visit ($)"
+              name="pay"
+              inputMode="decimal"
+              placeholder="keep current"
+              error={pe.pay}
+              autoComplete="off"
+            />
+          </div>
+          <FormActions
+            pending={pricePending}
+            submitLabel={`Update ${chosen.length} visit${chosen.length === 1 ? "" : "s"}`}
+            error={priceState.error}
+          />
+          <Button type="button" variant="ghost" size="sm" onClick={() => setFormOpen(null)}>
+            Cancel
+          </Button>
+        </form>
+      )}
+
+      {formOpen === "payment" && selectedRows.length > 0 && (
         <form action={action} className="space-y-3 rounded-md border p-3">
           {selectedRows.map((r) => (
             <input key={r.id} type="hidden" name="job_ids" value={r.id} />
@@ -145,7 +232,7 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
             <TextField label="Confirmation / check #" name="external_ref" error={e.external_ref} autoComplete="off" />
           </div>
           <FormActions pending={pending} submitLabel={`Record ${formatCents(selectedTotal)}`} error={state.error} />
-          <Button type="button" variant="ghost" size="sm" onClick={() => setFormOpen(false)}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setFormOpen(null)}>
             Cancel
           </Button>
         </form>
@@ -184,7 +271,7 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
               return (
                 <TableRow key={r.id} data-state={selected.has(r.id) ? "selected" : undefined}>
                   <TableCell>
-                    {unpaidDone && (
+                    {!noProfit && (
                       <input
                         type="checkbox"
                         checked={selected.has(r.id)}
