@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/server";
 import { formValues, fromZod, type FormState } from "@/lib/forms";
 import { buildRule } from "@/lib/rrule";
 import { generateInstances } from "@/lib/scheduling/generate";
+import { resolveClient } from "@/lib/scheduling/new-client";
 import { seriesSchema } from "@/lib/scheduling/shared";
 import { localDate } from "@/lib/tz";
 
@@ -17,10 +18,10 @@ function parseSeries(formData: FormData) {
   return seriesSchema.safeParse({ ...values, weekdays });
 }
 
-function toRow(d: ReturnType<typeof seriesSchema.parse>) {
+function toRow(d: ReturnType<typeof seriesSchema.parse>, who: { client_id: string; location_id: string }) {
   return {
-    client_id: d.client_id,
-    location_id: d.location_id,
+    client_id: who.client_id,
+    location_id: who.location_id,
     service_type_id: d.service_type_id,
     rrule: buildRule(d.frequency, d.weekdays, d.start_date),
     start_date: d.start_date,
@@ -49,11 +50,14 @@ export async function createSeries(_prev: FormState, formData: FormData): Promis
   if (!parsed.success) return fromZod(parsed.error);
 
   const supabase = await createClient();
-  const { data, error } = await supabase.from("job_series").insert(toRow(parsed.data)).select("id").single();
+  const who = await resolveClient(supabase, parsed.data);
+  if ("error" in who) return { error: who.error };
+  const { data, error } = await supabase.from("job_series").insert(toRow(parsed.data, who)).select("id").single();
   if (error) return { error: error.message };
 
   await generateInstances(supabase, { seriesId: data.id });
-  revalidateScheduling(parsed.data.client_id);
+  revalidateScheduling(who.client_id);
+  revalidatePath("/clients");
   redirect(`/series/${data.id}`);
 }
 
@@ -75,6 +79,8 @@ export async function splitSeries(
   const supabase = await createClient();
   const { data: old } = await supabase.from("job_series").select("*").eq("id", seriesId).maybeSingle();
   if (!old) return { error: "Series not found." };
+  const who = await resolveClient(supabase, parsed.data);
+  if ("error" in who) return { error: who.error };
 
   const dayBefore = format(addDays(parseISO(fromDate), -1), "yyyy-MM-dd");
   const { error: endErr } = await supabase
@@ -85,7 +91,7 @@ export async function splitSeries(
 
   await cancelFutureInstances(supabase, seriesId, fromDate, "Series changed from this date");
 
-  const row = { ...toRow({ ...parsed.data, start_date: fromDate }) };
+  const row = { ...toRow({ ...parsed.data, start_date: fromDate }, who) };
   const { data: created, error } = await supabase.from("job_series").insert(row).select("id").single();
   if (error) return { error: error.message };
 

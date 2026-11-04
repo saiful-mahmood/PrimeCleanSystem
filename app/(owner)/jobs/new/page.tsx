@@ -29,23 +29,14 @@ export default async function NewJobPage({ searchParams }: PageProps<"/jobs/new"
           </>
         }
       />
-      {options.clients.length === 0 ? (
-        <p className="text-sm text-muted-foreground">
-          Add a client first.{" "}
-          <Link href="/clients/new" className="underline">
-            Add client
-          </Link>
-        </p>
-      ) : (
-        <JobForm
-          action={createJob}
-          options={options}
-          defaults={{ date, start_time: time, client_id: clientId }}
-          cancelHref="/calendar"
-          submitLabel="Create job"
-          mode="create"
-        />
-      )}
+      <JobForm
+        action={createJob}
+        options={options}
+        defaults={{ date, start_time: time, client_id: clientId }}
+        cancelHref="/calendar"
+        submitLabel="Create job"
+        mode="create"
+      />
     </>
   );
 }

@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { SelectField, TextAreaField, TextField } from "@/components/forms/fields";
 import { CHARGE_METHODS } from "@/lib/types";
+import { NEW_CLIENT } from "@/lib/scheduling/shared";
 import type { SchedulingOptions } from "@/lib/scheduling/options";
 
 export type VisitDefaults = {
@@ -39,7 +40,8 @@ export function VisitFields({
   errors: Record<string, string>;
   lockClient?: boolean;
 }) {
-  const [clientId, setClientId] = useState(defaults.client_id ?? options.clients[0]?.id ?? "");
+  const [clientId, setClientId] = useState(defaults.client_id ?? options.clients[0]?.id ?? NEW_CLIENT);
+  const isNew = clientId === NEW_CLIENT;
   const [serviceTypeId, setServiceTypeId] = useState(defaults.service_type_id ?? options.serviceTypes[0]?.id ?? "");
   const client = useMemo(() => options.clients.find((c) => c.id === clientId), [options.clients, clientId]);
   const serviceType = options.serviceTypes.find((s) => s.id === serviceTypeId);
@@ -63,6 +65,7 @@ export function VisitFields({
             disabled={lockClient}
             className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs disabled:opacity-70"
           >
+            {!lockClient && <option value={NEW_CLIENT}>+ New client…</option>}
             {options.clients.map((c) => (
               <option key={c.id} value={c.id}>
                 {c.name}
@@ -72,18 +75,58 @@ export function VisitFields({
           {lockClient && <input type="hidden" name="client_id" value={clientId} />}
           {errors.client_id && <p className="text-xs text-destructive">{errors.client_id}</p>}
         </div>
-        <SelectField
-          key={clientId}
-          label="Location"
-          name="location_id"
-          defaultValue={locationDefault}
-          error={errors.location_id}
-          options={locations.map((l) => ({
-            value: l.id,
-            label: [l.label, l.address_line1 ?? l.city].filter(Boolean).join(" · "),
-          }))}
-        />
+        {isNew ? (
+          <TextField
+            label="Client name"
+            name="new_client_name"
+            error={errors.new_client_name}
+            placeholder="Jane Smith or Acme Office"
+            autoComplete="off"
+            required
+          />
+        ) : (
+          <SelectField
+            key={clientId}
+            label="Location"
+            name="location_id"
+            defaultValue={locationDefault}
+            error={errors.location_id}
+            options={locations.map((l) => ({
+              value: l.id,
+              label: [l.label, l.address_line1 ?? l.city].filter(Boolean).join(" · "),
+            }))}
+          />
+        )}
       </div>
+
+      {isNew && (
+        <div className="space-y-4 rounded-md border border-dashed p-3">
+          <p className="text-xs text-muted-foreground">
+            A new client and their first address will be created with this visit. You can add more details on the client
+            page later.
+          </p>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <SelectField
+              label="Type"
+              name="new_client_type"
+              defaultValue="residential"
+              error={errors.new_client_type}
+              options={[
+                { value: "residential", label: "Residential" },
+                { value: "commercial", label: "Commercial" },
+              ]}
+            />
+            <TextField label="Phone" name="new_client_phone" type="tel" error={errors.new_client_phone} />
+            <TextField label="Email" name="new_client_email" type="email" error={errors.new_client_email} />
+          </div>
+          <TextField label="Address" name="new_address_line1" error={errors.new_address_line1} autoComplete="off" />
+          <div className="grid grid-cols-3 gap-4">
+            <TextField label="City" name="new_city" error={errors.new_city} />
+            <TextField label="State" name="new_state" defaultValue="MA" error={errors.new_state} />
+            <TextField label="ZIP" name="new_postal_code" error={errors.new_postal_code} />
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-1.5">

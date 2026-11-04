@@ -6,6 +6,7 @@ import { requireOwner } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formValues, fromZod, type FormState } from "@/lib/forms";
 import { assignSchema, cancelSchema, jobEditSchema, jobSchema, paymentSchema } from "@/lib/scheduling/shared";
+import { resolveClient } from "@/lib/scheduling/new-client";
 import { localDate, localTime, localToInstant } from "@/lib/tz";
 import { parseDollars } from "@/lib/money";
 import type { Json } from "@/lib/database.types";
@@ -33,11 +34,13 @@ export async function createJob(_prev: FormState, formData: FormData): Promise<F
   const d = parsed.data;
 
   const supabase = await createClient();
+  const who = await resolveClient(supabase, d);
+  if ("error" in who) return { error: who.error };
   const { data: job, error } = await supabase
     .from("jobs")
     .insert({
-      client_id: d.client_id,
-      location_id: d.location_id,
+      client_id: who.client_id,
+      location_id: who.location_id,
       service_type_id: d.service_type_id,
       scheduled_start: localToInstant(d.date, d.start_time).toISOString(),
       duration_min: d.duration_min,
@@ -58,6 +61,7 @@ export async function createJob(_prev: FormState, formData: FormData): Promise<F
     });
   }
   revalidateJob();
+  revalidatePath("/clients");
   redirect(`/jobs/${job.id}`);
 }
 
