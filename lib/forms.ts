@@ -34,7 +34,8 @@ export const requiredText = (label: string) => z.string().trim().min(1, `${label
 
 export const optionalEmail = z
   .string()
-  .trim()
+  .optional()
+  .transform((s) => (s ?? "").trim())
   .transform((s) => (s === "" ? null : s))
   .pipe(z.string().email("Enter a valid email.").nullable())
   .transform((v) => v ?? null);
@@ -51,8 +52,9 @@ export const optionalPhone = z
 /** Dollar text ("$120", "120.50") to integer cents; blank is null. */
 export const optionalDollars = z
   .string()
-  .trim()
-  .transform((s, ctx) => {
+  .optional()
+  .transform((raw, ctx) => {
+    const s = (raw ?? "").trim();
     if (s === "") return null;
     const cents = parseDollars(s);
     if (cents === null || cents < 0) {
