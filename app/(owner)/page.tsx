@@ -86,12 +86,14 @@ export default async function TodayPage() {
         <Stat
           href="/pay"
           label="Owed to cleaners to date"
+          color="orange"
           value={formatCents(totalOwed)}
           sub={owed?.length ? `${owed.length} cleaner${owed.length === 1 ? "" : "s"}` : "all paid"}
         />
         <Stat
           href="/jobs?status=done"
           label="Owed by clients to date"
+          color="blue"
           value={formatCents(arTotal)}
           sub={
             arOldest
@@ -102,6 +104,7 @@ export default async function TodayPage() {
         <Stat
           href="/jobs"
           label="Profit this month"
+          color={Number(thisPnl?.total_profit_cents ?? 0) < 0 ? "red" : "green"}
           value={formatCents(Number(thisPnl?.total_profit_cents ?? 0))}
           sub={lastPnl ? `last month ${formatCents(Number(lastPnl.total_profit_cents ?? 0))}` : "by job date"}
         />
@@ -110,7 +113,7 @@ export default async function TodayPage() {
           label="Unassigned next 7 days"
           value={String(unassigned.length)}
           sub={unassigned.length ? "needs a cleaner" : "all covered"}
-          tone={unassigned.length ? "warn" : undefined}
+          color={unassigned.length ? "red" : "violet"}
         />
       </div>
 
@@ -189,28 +192,35 @@ export default async function TodayPage() {
   );
 }
 
+const TILE: Record<string, string> = {
+  green: "from-emerald-500 to-emerald-400",
+  blue: "from-sky-600 to-sky-400",
+  violet: "from-violet-600 to-fuchsia-500",
+  orange: "from-amber-500 to-orange-400",
+  red: "from-rose-600 to-red-500",
+};
+
 function Stat({
   href,
   label,
   value,
   sub,
-  tone,
+  color,
 }: {
   href: string;
   label: string;
   value: string;
   sub?: string;
-  tone?: "warn";
+  color: keyof typeof TILE;
 }) {
   return (
-    <Link href={href}>
-      <Card className={`h-full transition-colors hover:bg-accent/40 ${tone === "warn" ? "border-amber-300" : ""}`}>
-        <CardHeader>
-          <CardDescription>{label}</CardDescription>
-          <CardTitle className="text-2xl tabular-nums">{value}</CardTitle>
-          {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
-        </CardHeader>
-      </Card>
+    <Link
+      href={href}
+      className={`block rounded-xl bg-linear-to-br ${TILE[color]} p-4 text-white shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md`}
+    >
+      <p className="text-sm font-medium text-white/85">{label}</p>
+      <p className="mt-1 text-3xl font-semibold tracking-tight tabular-nums">{value}</p>
+      {sub && <p className="mt-1 text-xs text-white/80">{sub}</p>}
     </Link>
   );
 }
