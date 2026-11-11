@@ -1,10 +1,11 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { FormActions, SelectField, TextField } from "@/components/forms/fields";
+import { FormActions, TextField } from "@/components/forms/fields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { FormState } from "@/lib/forms";
+import { estimateStripeFee, formatCents, isStripeMethod, parseDollars } from "@/lib/money";
 import { assignProvider, cancelJob, recordPayment } from "@/app/(owner)/jobs/actions";
 
 export function AssignForm({
@@ -109,6 +110,12 @@ export function CancelJobForm({ jobId, hasAssignments }: { jobId: string; hasAss
   );
 }
 
+function feeRuleLabel(method: string): string {
+  if (method === "stripe_card") return "2.9% + 30¢";
+  if (method === "stripe_ach") return "0.8% capped at $5";
+  return "ACH 0.8% capped at $5, plus 0.4% invoicing";
+}
+
 const PAYMENT_METHODS = [
   { value: "zelle", label: "Zelle" },
   { value: "check", label: "Check" },
@@ -134,6 +141,12 @@ export function RecordPaymentForm({
   onRecorded?: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [method, setMethod] = useState(
+    defaultMethod && PAYMENT_METHODS.some((m) => m.value === defaultMethod) ? defaultMethod : "zelle",
+  );
+  const [amount, setAmount] = useState((Math.max(outstandingCents, 0) / 100).toFixed(2));
+  const amountCents = parseDollars(amount) ?? 0;
+  const estimatedFee = estimateStripeFee(method, amountCents);
   const [state, action, pending] = useActionState<FormState, FormData>(async (prev, fd) => {
     const r = await recordPayment(jobId, prev, fd);
     if (!r.error && !r.fieldErrors) {
@@ -159,20 +172,31 @@ export function RecordPaymentForm({
           label="Amount"
           name="amount_cents"
           inputMode="decimal"
-          defaultValue={(Math.max(outstandingCents, 0) / 100).toFixed(2)}
+          value={amount}
+          onChange={(ev) => setAmount(ev.target.value)}
           error={e.amount_cents}
           required
           autoFocus
         />
-        <SelectField
-          label="Paid by"
-          name="method"
-          defaultValue={
-            defaultMethod && PAYMENT_METHODS.some((m) => m.value === defaultMethod) ? defaultMethod : "zelle"
-          }
-          error={e.method}
-          options={PAYMENT_METHODS}
-        />
+        <div className="space-y-1.5">
+          <label htmlFor="payment_method" className="text-sm font-medium">
+            Paid by
+          </label>
+          <select
+            id="payment_method"
+            name="method"
+            value={method}
+            onChange={(ev) => setMethod(ev.target.value)}
+            className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs"
+          >
+            {PAYMENT_METHODS.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          {e.method && <p className="text-xs text-destructive">{e.method}</p>}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <TextField
@@ -192,12 +216,17 @@ export function RecordPaymentForm({
         />
       </div>
       <TextField
-        label="Processing fee (if card)"
+        key={`fee-${method}`}
+        label="Stripe fee"
         name="fee_cents"
         inputMode="decimal"
-        placeholder="0.00"
+        placeholder={isStripeMethod(method) ? (estimatedFee / 100).toFixed(2) : "0.00"}
         error={e.fee_cents}
-        hint="Leave blank for Zelle, check, cash or Venmo."
+        hint={
+          isStripeMethod(method)
+            ? `Leave blank to use Stripe's rate: ${feeRuleLabel(method)} = ${formatCents(estimatedFee)} on this amount. Type the exact fee from Stripe if you have it.`
+            : "No fee for Zelle, check, cash or Venmo."
+        }
       />
       <FormActions pending={pending} submitLabel="Record client payment" error={state.error} />
       <Button type="button" variant="ghost" size="sm" onClick={() => setOpen(false)}>

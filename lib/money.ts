@@ -43,14 +43,54 @@ export function parseDollars(input: string | number | null | undefined): number 
   return negative ? -cents : cents;
 }
 
+/**
+ * Stripe US standard pricing (stripe.com/pricing, checked Nov 2026):
+ *   cards            2.9% + 30¢ per successful charge
+ *   ACH Direct Debit 0.8%, capped at $5.00
+ *   Invoicing        +0.4% of each paid invoice (Starter tier), on top of the payment fee
+ * Fees are computed on the amount actually paid and rounded to the cent.
+ */
+export const STRIPE_CARD_PCT = 0.029;
+export const STRIPE_CARD_FIXED_CENTS = 30;
+export const STRIPE_ACH_PCT = 0.008;
+export const STRIPE_ACH_CAP_CENTS = 500;
+export const STRIPE_INVOICING_PCT = 0.004;
+
 /** Stripe card pricing: 2.9% + 30¢, rounded to the nearest cent. */
 export function estimateStripeCardFee(amountCents: number): number {
-  return Math.round(amountCents * 0.029) + 30;
+  return Math.round(amountCents * STRIPE_CARD_PCT) + STRIPE_CARD_FIXED_CENTS;
 }
 
 /** Stripe ACH Direct Debit pricing: 0.8% capped at $5. */
 export function estimateStripeAchFee(amountCents: number): number {
-  return Math.min(Math.round(amountCents * 0.008), 500);
+  return Math.min(Math.round(amountCents * STRIPE_ACH_PCT), STRIPE_ACH_CAP_CENTS);
+}
+
+/** Stripe Invoicing adds 0.4% of the paid amount to whichever payment fee applied. */
+export function estimateStripeInvoicingFee(amountCents: number): number {
+  return Math.round(amountCents * STRIPE_INVOICING_PCT);
+}
+
+/**
+ * The fee Stripe keeps for a payment made a given way; 0 for Zelle, check,
+ * cash and Venmo. Commercial invoices are paid by ACH (SPEC), so a Stripe
+ * invoice is the ACH fee plus the invoicing fee.
+ */
+export function estimateStripeFee(method: string | null | undefined, amountCents: number): number {
+  switch (method) {
+    case "stripe_card":
+      return estimateStripeCardFee(amountCents);
+    case "stripe_ach":
+      return estimateStripeAchFee(amountCents);
+    case "stripe_invoice":
+      return estimateStripeAchFee(amountCents) + estimateStripeInvoicingFee(amountCents);
+    default:
+      return 0;
+  }
+}
+
+export function isStripeMethod(method: string | null | undefined): boolean {
+  return method === "stripe_card" || method === "stripe_ach" || method === "stripe_invoice";
 }
 
 /** Per-job margin: charge minus fees minus cleaner pay. */

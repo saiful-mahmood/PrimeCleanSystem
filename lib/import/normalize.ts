@@ -1,4 +1,4 @@
-import { estimateStripeAchFee, estimateStripeCardFee, parseDollars } from "@/lib/money";
+import { estimateStripeFee, isStripeMethod, parseDollars } from "@/lib/money";
 import { localToInstant } from "@/lib/tz";
 
 /**
@@ -299,8 +299,8 @@ export function normalizeRevenues(recs: Record<string, string>[], warnings: Warn
     }
     let fee = parseDollars(r["Stripe 2.9% fee"]) ?? 0;
     let feeEstimated = false;
-    if (fee === 0 && (chargeMethod === "stripe_card" || chargeMethod === "stripe_ach")) {
-      fee = chargeMethod === "stripe_ach" ? estimateStripeAchFee(charge) : estimateStripeCardFee(charge);
+    if (fee === 0 && isStripeMethod(chargeMethod)) {
+      fee = estimateStripeFee(chargeMethod, charge);
       feeEstimated = true;
       warnings.push({ tab: "revenues", row, message: `Stripe row with no fee; estimated $${(fee / 100).toFixed(2)}.` });
     }

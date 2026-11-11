@@ -6,6 +6,7 @@ import {
   marginPct,
   parseDollars,
   profitCents,
+  estimateStripeFee,
 } from "./money";
 
 describe("formatCents", () => {
@@ -60,6 +61,14 @@ describe("fee estimates", () => {
   it("ach: 0.8% capped at $5", () => {
     expect(estimateStripeAchFee(28000)).toBe(224);
     expect(estimateStripeAchFee(100000)).toBe(500);
+  });
+  it("by method: card vs ACH vs invoice, nothing for manual methods", () => {
+    expect(estimateStripeFee("stripe_card", 28000)).toBe(842);
+    expect(estimateStripeFee("stripe_ach", 28000)).toBe(224);
+    expect(estimateStripeFee("stripe_invoice", 28000)).toBe(224 + 112);
+    expect(estimateStripeFee("stripe_invoice", 1720000)).toBe(500 + 6880);
+    expect(estimateStripeFee("zelle", 28000)).toBe(0);
+    expect(estimateStripeFee(null, 28000)).toBe(0);
   });
 });
 

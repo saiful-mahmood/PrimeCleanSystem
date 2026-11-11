@@ -211,7 +211,9 @@ export function JobsTable({ rows, today }: { rows: JobRow[]; today: string }) {
             Recording <span className="font-medium tabular-nums">{formatCents(selectedTotal)}</span> across{" "}
             {selectedRows.length} visit
             {selectedRows.length === 1 ? "" : "s"} for {[...new Set(selectedRows.map((r) => r.clientName))].join(", ")}.
-            Each visit is marked as paid by the client in full. (Paying your cleaners is separate, under Pay.)
+            Each visit is marked as paid by the client in full. For Stripe methods the fee is estimated per visit at
+            Stripe&apos;s rate (card 2.9% + 30¢, ACH 0.8% capped at $5, invoices add 0.4%). (Paying your cleaners is
+            separate, under Pay.)
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             <SelectField

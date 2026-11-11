@@ -8,7 +8,7 @@ import { formValues, fromZod, type FormState } from "@/lib/forms";
 import { assignSchema, cancelSchema, jobEditSchema, jobSchema, paymentSchema } from "@/lib/scheduling/shared";
 import { resolveClient } from "@/lib/scheduling/new-client";
 import { localDate, localTime, localToInstant } from "@/lib/tz";
-import { parseDollars } from "@/lib/money";
+import { estimateStripeFee, parseDollars } from "@/lib/money";
 import type { Json } from "@/lib/database.types";
 
 function revalidateJob(jobId?: string) {
@@ -323,7 +323,8 @@ export async function recordPayment(jobId: string, _prev: FormState, formData: F
     job_id: jobId,
     method: d.method,
     amount_cents: d.amount_cents,
-    fee_cents: d.fee_cents ?? 0,
+    // A blank fee means "whatever Stripe charges for this method"; a typed fee (even 0) wins.
+    fee_cents: d.fee_cents ?? estimateStripeFee(d.method, d.amount_cents),
     received_at: localToInstant(d.received_at, "12:00").toISOString(),
     external_ref: d.external_ref,
     notes: d.notes,
@@ -375,7 +376,7 @@ export async function recordBulkPayment(_prev: FormState, formData: FormData): P
       job_id: job.id,
       method: d.method,
       amount_cents: outstanding,
-      fee_cents: 0,
+      fee_cents: estimateStripeFee(d.method, outstanding),
       received_at: receivedAt,
       external_ref: d.external_ref,
       notes: d.notes,
